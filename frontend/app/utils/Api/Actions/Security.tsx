@@ -1,0 +1,247 @@
+"use server";
+import { gql } from "@apollo/client";
+import { getClient } from "../Client";
+import {
+  getAuthenticateMutation,
+  getChangePasswordMutation,
+  getLogoutMutation,
+  getRegisterMutation,
+} from "../Queries/Security";
+import {
+  SessionPayload,
+  createSession,
+  deleteSession,
+  updateSession,
+  verifySession,
+  getDataFromCookie,
+} from "./cookies-session";
+import { redirect } from "next/navigation";
+import { userSchema, validateSession } from "../../schemas";
+import { revalidatePath } from "next/cache";
+import { setAccessToken } from "../Client";
+import { tr } from "@faker-js/faker";
+
+export const login = async (
+  prevState: any,
+  formData: FormData
+): Promise<{ message: string }> => {
+  try {
+    const username = formData.get("username") as string;
+    const password = formData.get("password") as string;
+    const userData = { username, password };
+
+    // Validate the user data
+    const validatedUser = validateSession(userSchema, userData);
+
+    // GraphQL mutation
+    const query = gql`
+      mutation {
+        authenticate(input: { username: "${username}", password: "${password}" }) {
+          accessToken
+          refreshToken
+          clerkId
+        }
+      }
+    `;
+
+    // Perform mutation
+    const client = getClient();
+    const { data } = await client.mutate({ mutation: query });
+    const { accessToken, refreshToken, clerkId } = data.authenticate;
+
+    // Set the token globally
+    setAccessToken(accessToken);
+
+    // Prepare the session payload
+    const dataUser: SessionPayload = {
+      userId: clerkId,
+      username: username,
+      jwt: accessToken,
+      refreshToken: refreshToken,
+    };
+    // Store the session in a cookie
+    await createSession(dataUser);
+
+    // Redirect the user
+  } catch (error) {
+    console.error("Error logging in:", error);
+    throw new Error("Failed to login.");
+  }
+  redirect("/");
+};
+
+export const changePassword = async (
+  prevState: any,
+  formData: FormData
+): Promise<{ message: string }> => {
+  const username = formData.get("username") as string;
+  const currentPassword = formData.get("currentPassword") as string;
+  const newPassword = formData.get("newPassword") as string;
+  const confirmationPassword = formData.get("confirmPassword") as string;
+
+  const { data } = await getClient().mutate({
+    mutation: getChangePasswordMutation(
+      username,
+      currentPassword,
+      newPassword,
+      confirmationPassword
+    ),
+  });
+  // data.changePassword;
+  return { message: "password changed succesfuly" }; // Assuming `data.changePassword` contains the message
+};
+
+export const logout = async (
+  prevState: any,
+  formData: FormData
+): Promise<{ message: string }> => {
+  const query = gql`
+    mutation {
+      logout
+    }
+  `;
+  const s = getClient();
+  revalidatePath("/");
+  await s.mutate({ mutation: query });
+  await deleteSession();
+  redirect("/");
+};
+
+export const register = async (
+  prevState: any,
+  formData: FormData
+): Promise<{ message: string }> => {
+  try {
+    const username = formData.get("username") as string;
+    const password = formData.get("password") as string;
+    const userData = { username, password };
+
+    // Validate the user data
+    const validatedUser = validateSession(userSchema, userData);
+
+    // GraphQL mutation
+    const query = gql`
+    mutation {
+      register(
+        input: {
+          username: "${username}",
+          password: "${password}",
+          role: "${"USER"}"
+        }
+      ) {
+        accessToken
+        refreshToken
+        clerkId
+      }
+    }
+  `;
+
+    // Perform mutation
+    const client = getClient();
+    const { data } = await client.mutate({ mutation: query });
+    const { accessToken, refreshToken, clerkId } = data.register;
+
+    // Set the token globally
+    setAccessToken(accessToken);
+
+    // Prepare the session payload
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+    const dataUser: SessionPayload = {
+      userId: clerkId,
+      username: username,
+      jwt: accessToken,
+      refreshToken: refreshToken,
+    };
+    // Store the session in a cookie
+    await createSession(dataUser);
+
+    // Redirect the user
+  } catch (error) {
+    console.error("Error logging in:", error);
+    throw new Error("Failed to login.");
+  }
+  redirect("/");
+};
+
+type User = {
+  userId?: string; // Unique identifier for the user
+};
+type User2 = {
+  id: string; // Unique identifier for the user
+  username: string;
+};
+
+export const auth = async (): Promise<User> => {
+  try {
+    const cookie = await getDataFromCookie();
+    // Simulate authentication logic or replace with actual implementation
+    const user: User = { userId: cookie?.userId }; // Replace this with real user fetching logic
+    if (user) {
+      return user; // Return a valid user object
+    } else {
+      const user: User = { userId: undefined };
+      return user;
+    }
+  } catch (error) {
+    console.error("Error during authentication:", error); // Log the error
+    throw new Error("Unauthorized access"); // Return null if there's an error
+  }
+};
+
+export const getAdminUser = async (): Promise<User2> => {
+  try {
+    const user = await currentUser();
+    if (user == null || user?.id !== process.env.ADMIN_USER_ID) {
+    }
+    return user;
+  } catch (error) {
+    console.error("Error during authentication:", error); // Log the error
+    throw new Error("Unauthorized access"); // Return null if there's an error
+  }
+};
+
+export const currentUser = async (): Promise<User2> => {
+  try {
+    const cookie = await getDataFromCookie();
+    // Simulate authentication logic or replace with actual implementation
+    if (cookie) {
+      const user: User2 = {
+        id: cookie.userId,
+        username: cookie.username,
+      }; // Replace this with real user fetching logic
+      return user; // Return a valid user object
+    } else {
+      const user: User2 = {
+        id: "",
+        username: "",
+      };
+      return user;
+    }
+  } catch (error) {
+    throw new Error("Unauthorized access");
+  }
+};
+
+// src/app/utils/Api/Actions/Security.ts
+
+export async function authId(): Promise<{ userId: string | undefined }> {
+  try {
+    const cookie = await getDataFromCookie();
+    return { userId: cookie?.userId };
+  } catch (error) {
+    console.error("Error during authentication:", error);
+    return { userId: undefined }; // Return undefined if authentication fails
+  }
+}
+
+export async function authJwt(): Promise<{ jwt: string | undefined }> {
+  try {
+    if (!(await getDataFromCookie())) return { jwt: undefined };
+
+    const cookie = await getDataFromCookie();
+    return { jwt: cookie?.jwt };
+  } catch (error) {
+    console.error("Error during authentication:", error);
+    return { jwt: undefined }; // Return undefined if authentication fails
+  }
+}

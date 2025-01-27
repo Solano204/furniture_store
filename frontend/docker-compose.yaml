@@ -1,0 +1,25 @@
+version: '3.9' # Specify Docker Compose version
+
+services:
+  backend:
+    image: your-backend-image:latest # Replace with your Spring Boot image name
+    container_name: backend-service
+    ports:
+      - "8080:8080" # Expose Spring Boot backend on localhost:8080
+    networks:
+      - app-network
+
+  frontend:
+    image: your-frontend-image:latest # Replace with your Next.js image name
+    container_name: frontend-service
+    ports:
+      - "3000:3000" # Expose Next.js frontend on localhost:3000
+    networks:
+      - app-network
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend-service:8080 # Use the backend's service name to connect
+
+networks:
+  app-network:
+    driver: bridge
+  

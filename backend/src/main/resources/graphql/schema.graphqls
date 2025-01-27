@@ -1,0 +1,148 @@
+# Query type - queries related to fetching data
+type Query {
+    getFavorites(clerkId: String!): [Favorite]
+    getFavorite(productId: String!, clerkId: String!): Favorite
+    getUserOrders(clerkId: String!): [Order]
+    getFeaturedProducts: [Product]
+    getProductById(productId: String!): Product
+    searchProducts(company: String!, name: String!): [Product]
+    getProductReviews(productId: String!): [Review]
+    getReviewAggregate(productId: String!): ReviewAggregate
+    getReviewUserProduct(productId: String!, clerkId: String!): Boolean
+    getUserReviews(clerkId: String!): [Review]
+    getOrders: [Order]
+}
+
+# Mutation type - mutations related to creating, updating, or deleting data always the name of the methon in lowerCase
+type Mutation {
+    addFavorite(input: AddFavoriteInput!): Favorite
+    deleteFavorite(favoriteId: String!): Boolean
+    createOrder(input: CreateOrderInput!): Order
+    createProduct(input: CreateProductInput!): Product
+    updateProduct(productId: String!, input: UpdateProductInput!): Product
+    updateProductImage(productId: String!, image: String!): Product
+    deleteProduct(productId: String!): Product
+    createReview(input: CreateReviewInput!): Review
+    deleteReview(id: String!, clerkId: String!): Boolean
+    register(input: RegisterRequest!): AuthenticationResponse!
+    authenticate(input: AuthenticationRequest!): AuthenticationResponse!
+    refreshToken(refreshToken: String!): Boolean!
+    changePassword(input: ChangePasswordRequest!): String!
+    logout: String
+}
+
+# Input types - input types used for mutations
+input AddFavoriteInput {
+    productId: String!
+    clerkId: String!
+}
+
+input CreateProductInput {
+    name: String!
+    description: String!
+    image: String!
+    clerkId: String!
+    company: String!
+    price: Int!  
+}
+
+
+input UpdateProductInput {
+    name: String
+    description: String
+    company: String
+    price: Int
+}
+
+input CreateReviewInput {
+    productId: String!
+    authorName: String
+    authorImageUrl: String
+    rating: Int!
+    comment: String
+    clerkId: String!
+}
+
+input CreateOrderInput {
+    clerkId: String!
+    products: Int
+    orderTotal: Float!  # Changed from BigDecimal to Float
+    tax: Float!         # Changed from BigDecimal to Float
+    shipping: Float!    # Changed from BigDecimal to Float
+    username: String!
+}
+
+# Type definitions - the data that will be returned by queries and mutations
+type Product {
+    id: String!
+    name: String!
+    description: String!
+    company: String!
+    image: String!
+    clerkId: String!
+    featured: Boolean
+    createdAt: String!
+    price: Int!
+}
+
+type Favorite {
+    id: String!
+    productId: String!
+    clerkId: String!
+    product: Product!
+
+}
+
+type Review {
+    id: String!
+    productId: String!
+    rating: Float!
+    authorName: String
+    authorImageUrl: String
+    comment: String
+    clerkId: String!
+    createdAt: String!
+    updateAt: String
+    product: Product
+}
+
+type ReviewAggregate {
+    productId: String!
+    avgRating: Float!
+    ratingCount: Int!
+}
+
+type Order {
+    id: String!
+    clerkId: String!
+    products: Int
+    orderTotal: Float!   # Changed from BigDecimal to Float
+    tax: Float!          # Changed from BigDecimal to Float
+    shipping: Float!     # Changed from BigDecimal to Float
+    username: String!
+    createdAt: String!
+}
+
+input RegisterRequest {
+  username: String!
+  password: String!
+  role: String!
+}
+
+input AuthenticationRequest {
+  username: String!
+  password: String!
+}
+
+input ChangePasswordRequest {
+  username: String!
+  currentPassword: String!
+  newPassword: String!
+  confirmationPassword: String!
+}
+
+type AuthenticationResponse {
+  accessToken: String!
+  refreshToken: String!
+  clerkId: String!
+}

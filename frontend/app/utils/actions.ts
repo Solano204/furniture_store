@@ -1,0 +1,23 @@
+ "use server";
+import {getActionsInformationDbPrisma} from './actionsInformationDbPrisma';
+
+const dbActions = await getActionsInformationDbPrisma();
+export const fetchFeaturedProducts = dbActions.fetchFeaturedProducts;
+export const fetchAdminProducts = dbActions.fetchAdminProducts;
+export const createProductAction = dbActions.createProductAction;
+export const updateProductAction = dbActions.updateProductAction;
+export const updateProductImageAction = dbActions.updateProductImageAction;
+export const deleteProductAction = dbActions.deleteProductAction;
+export const fetchSingleProduct = dbActions.fetchSingleProduct;
+export const fetchAdminProductDetails = dbActions.fetchAdminProductDetails;
+export const toggleFavoriteAction = dbActions.toggleFavoriteAction;
+export const fetchFavoriteId = dbActions.fetchFavoriteId;
+export const fetchUserFavorites = dbActions.fetchUserFavorites;
+export const fetchProductRating = dbActions.fetchProductRating;
+export const fetchAllProducts = dbActions.fetchAllProducts;
+export const createReviewAction = dbActions.createReviewAction;
+export const deleteReviewAction = dbActions.deleteReviewAction;
+export const fetchProductReviews = dbActions.fetchProductReviews;
+export const fetchProductReviewsByUser = dbActions.fetchProductReviewsByUser;
+export const findExistingReview = dbActions.findExistingReview;
+export const fetchProduct = dbActions.fetchProduct;
