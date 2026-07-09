@@ -1,16 +1,10 @@
 package com.backend.Infraestructure.Adapters.Drivers.Security.Services;
 
 import lombok.Data;
-import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
 import org.springframework.http.HttpHeaders;
-import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ReactiveAuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
@@ -18,19 +12,13 @@ import org.springframework.web.reactive.function.server.ServerResponse;
 import com.backend.Infraestructure.Adapters.Drivens.Entities.Token;
 import com.backend.Infraestructure.Adapters.Drivens.Entities.User;
 import com.backend.Infraestructure.Adapters.Drivens.Graphql.DocumentMappings;
-import com.backend.Infraestructure.Adapters.Drivens.Graphql.DocumentMappings.AuthenticationResponse;
 import com.backend.Infraestructure.Adapters.Drivens.Repositories.TokenRepository;
 import com.backend.Infraestructure.Adapters.Drivens.Repositories.UserRepository;
 import com.backend.Infraestructure.Adapters.Drivers.Security.GraphQLCustomException;
 import com.backend.Infraestructure.Adapters.Drivers.Security.Roles.Role;
 import com.backend.Infraestructure.Adapters.Drivers.Security.Roles.UserRole;
 import com.backend.Infraestructure.Adapters.Drivers.Security.token.TokenType;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.mongodb.internal.connection.Server;
 
-import java.io.IOException;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.util.Set;
 
 @Service
@@ -173,15 +161,17 @@ public class AuthenticationService {
                                 }
                                 // Generate new access token reactively
                                 return jwtService.generateToken(user)
-                                    .flatMap(accessToken -> {
-                                        // Revoke all previous tokens and save the new one
-                                        revokeAllUserTokens(user);
-                                        saveUserToken(user, accessToken);
-
-                                        // Build response
-                                        var authResponse = new DocumentMappings.AuthenticationResponse(accessToken, refreshToken, user.getId());
-                                        return ServerResponse.ok().bodyValue(authResponse);
-                                    });
+                                    .flatMap(accessToken ->
+                                        // Revoke all previous tokens and save the new one - both are
+                                        // lazy Monos, so they must be chained (not just called) to
+                                        // actually run before the response is built.
+                                        revokeAllUserTokens(user)
+                                            .then(saveUserToken(user, accessToken))
+                                            .then(Mono.defer(() -> {
+                                                var authResponse = new DocumentMappings.AuthenticationResponse(
+                                                        accessToken, refreshToken, user.getId());
+                                                return ServerResponse.ok().bodyValue(authResponse);
+                                            })));
                             })
                         );
                 });
