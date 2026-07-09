@@ -5,11 +5,12 @@ import ProductsContainer from '@/components/products/ProductsContainer';
 async function ProductsPage({
   searchParams,
 }: {
-  searchParams: { layout?: string; search?: string };
+  searchParams: Promise<{ layout?: string; search?: string }>;
     }) {
-    
-  const layout = searchParams.layout || '';
-    const search = searchParams.search || '';
+
+  const resolvedSearchParams = await searchParams;
+  const layout = resolvedSearchParams.layout || '';
+    const search = resolvedSearchParams.search || '';
       
   return (
     <>

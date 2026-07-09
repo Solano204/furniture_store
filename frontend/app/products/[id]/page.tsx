@@ -12,10 +12,11 @@ import { fetchSingleProduct } from "@/app/utils/Api/Actions/Products";
 import {  findExistingReview } from "@/app/utils/Api/Actions/Review";
 // import { auth } from "@clerk/nextjs/server";
 import { auth } from "@/app/utils/Api/Actions/Security";
-async function SingleProductPage({ params }: { params: { id: string } }) {
+async function SingleProductPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const { userId } = await auth();
-  const product = await fetchSingleProduct(params.id);
-  
+  const product = await fetchSingleProduct(id);
+
   // Here im evaluting 2 options the user is logged or doent have review about this product
   const reviewDoesNotExist = userId && !(await findExistingReview(userId, product.id));
 
@@ -40,25 +41,25 @@ async function SingleProductPage({ params }: { params: { id: string } }) {
         <div>
           <div className="flex gap-x-8 items-center">
             <h1 className="capitalize text-3xl font-bold">{name}</h1>
-            <FavoriteToggleButton productId={params.id} />
-            <ShareButton name={product.name} productId={params.id} />
+            <FavoriteToggleButton productId={id} />
+            <ShareButton name={product.name} productId={id} />
           </div>
 
-          <ProductRating productId={params.id} />
+          <ProductRating productId={id} />
           <h4 className="text-xl mt-2">{company}</h4>
           <p className="mt-3 text-md bg-muted inline-block p-2 rounded-md">
             {dollarsAmount}
           </p>
           <p className="mt-6 leading-8 text-muted-foreground">{description}</p>
           {/* Button to the product to cart */}
-          <AddToCart productId={params.id} />
+          <AddToCart productId={id} />
         </div>
       </div>
 
       {/*Here i show all reviews dont matter if im not logged */}
-      <ProductReviews productId={params.id} />
+      <ProductReviews productId={id} />
        {/* i show the button that active the form to leave a review */}
-      {reviewDoesNotExist && <SubmitReview productId={params.id} />}
+      {reviewDoesNotExist && <SubmitReview productId={id} />}
     </section>
   );
 }
