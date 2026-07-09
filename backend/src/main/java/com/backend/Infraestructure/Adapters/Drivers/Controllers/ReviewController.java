@@ -3,8 +3,6 @@ package com.backend.Infraestructure.Adapters.Drivers.Controllers;
 import java.time.LocalDate;
 import java.util.List;
 
-import javax.print.Doc;
-
 import org.springframework.graphql.data.method.annotation.Argument;
 import org.springframework.graphql.data.method.annotation.MutationMapping;
 import org.springframework.graphql.data.method.annotation.QueryMapping;

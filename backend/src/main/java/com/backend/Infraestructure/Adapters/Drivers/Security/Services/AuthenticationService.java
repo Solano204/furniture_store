@@ -2,12 +2,9 @@ package com.backend.Infraestructure.Adapters.Drivers.Security.Services;
 
 import lombok.Data;
 import reactor.core.publisher.Mono;
-import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.ReactiveAuthenticationManager;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.server.ServerRequest;
-import org.springframework.web.reactive.function.server.ServerResponse;
 
 import com.backend.Infraestructure.Adapters.Drivens.Entities.Token;
 import com.backend.Infraestructure.Adapters.Drivens.Entities.User;
@@ -138,44 +135,35 @@ public class AuthenticationService {
         .doOnError(error -> System.err.println("Failed to revoke tokens for user: " + user.getUsername() + ", error: " + error.getMessage()));
   } 
 
-  // Here I validate the token and the information of the user
-  public Mono<ServerResponse> refreshToken(ServerRequest request) {
-    return Mono.justOrEmpty(request.headers().firstHeader(HttpHeaders.AUTHORIZATION)) // Extract Authorization header
-        .filter(authHeader -> authHeader.startsWith("Bearer ")) // Ensure it starts with "Bearer "
-        .flatMap(authHeader -> {
-            String refreshToken = authHeader.substring(7); // Remove "Bearer " prefix
-            // Extract Username reactively
-            return jwtService.extractUsername(refreshToken)
-                .flatMap(userUsername -> {
-                    if (userUsername == null) {
-                        return ServerResponse.badRequest().bodyValue("Invalid refresh token");
-                    }
+  // Validates a refresh token and, if valid, rotates it for a new access token.
+  // Takes the raw token string directly - the GraphQL mutation
+  // (refreshToken(refreshToken: String!): Boolean!) hands one straight through,
+  // there's no HTTP request to pull an Authorization header out of.
+  public Mono<Boolean> refreshToken(String refreshToken) {
+    if (refreshToken == null || refreshToken.isBlank()) {
+        return Mono.just(false);
+    }
 
-                    // Find user reactively
-                    return repository.findByUsername(userUsername)
-                        .switchIfEmpty(Mono.error(new RuntimeException("User not found")))
-                        .flatMap(user -> jwtService.isTokenValid(refreshToken, user)
-                            .flatMap(isValid -> {
-                                if (!isValid) {
-                                    return ServerResponse.badRequest().bodyValue("Invalid token");
-                                }
-                                // Generate new access token reactively
-                                return jwtService.generateToken(user)
-                                    .flatMap(accessToken ->
-                                        // Revoke all previous tokens and save the new one - both are
-                                        // lazy Monos, so they must be chained (not just called) to
-                                        // actually run before the response is built.
-                                        revokeAllUserTokens(user)
-                                            .then(saveUserToken(user, accessToken))
-                                            .then(Mono.defer(() -> {
-                                                var authResponse = new DocumentMappings.AuthenticationResponse(
-                                                        accessToken, refreshToken, user.getId());
-                                                return ServerResponse.ok().bodyValue(authResponse);
-                                            })));
-                            })
-                        );
-                });
+    return jwtService.extractUsername(refreshToken)
+        .flatMap(username -> {
+            if (username == null) {
+                return Mono.just(false);
+            }
+
+            return repository.findByUsername(username)
+                .flatMap(user -> jwtService.isTokenValid(refreshToken, user)
+                    .flatMap(isValid -> {
+                        if (!isValid) {
+                            return Mono.just(false);
+                        }
+                        return jwtService.generateToken(user)
+                            .flatMap(accessToken -> revokeAllUserTokens(user)
+                                .then(saveUserToken(user, accessToken))
+                                .thenReturn(true));
+                    }))
+                .switchIfEmpty(Mono.just(false));
         })
-        .switchIfEmpty(ServerResponse.badRequest().bodyValue("Missing or invalid Authorization header"));
+        .switchIfEmpty(Mono.just(false))
+        .onErrorReturn(false);
 }
 }
