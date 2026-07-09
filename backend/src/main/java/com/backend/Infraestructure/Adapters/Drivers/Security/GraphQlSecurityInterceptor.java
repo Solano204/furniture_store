@@ -2,17 +2,13 @@ package com.backend.Infraestructure.Adapters.Drivers.Security;
 
 import java.util.List;
 
-import org.springframework.boot.autoconfigure.graphql.GraphQlProperties;
 import org.springframework.graphql.server.WebGraphQlInterceptor;
 import org.springframework.graphql.server.WebGraphQlRequest;
 import org.springframework.graphql.server.WebGraphQlResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.security.core.userdetails.ReactiveUserDetailsService;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
-import org.springframework.web.server.ServerWebExchange;
 
 import com.backend.Infraestructure.Adapters.Drivens.Graphql.GraphQlPros;
 import com.backend.Infraestructure.Adapters.Drivens.Repositories.TokenRepository;
@@ -105,7 +101,9 @@ public class GraphQlSecurityInterceptor implements WebGraphQlInterceptor {
 
                                                     // Set custom details if necessary
                                                     authToken.setDetails(new CustomAuthenticationDetails(request));
-                                                    return chain.next(request);
+                                                    return chain.next(request)
+                                                            .contextWrite(ReactiveSecurityContextHolder
+                                                                    .withAuthentication(authToken));
                                                 } else {
                                                     return Mono.error(new GraphQLCustomException(
                                                             "Invalid credentials",
