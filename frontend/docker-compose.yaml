@@ -1,25 +1,81 @@
-version: '3.9' # Specify Docker Compose version
+version: '3.9'
 
 services:
-  backend:
-    image: your-backend-image:latest # Replace with your Spring Boot image name
-    container_name: backend-service
+  mongo:
+    image: mongo:7
+    container_name: furniture-store-mongo
     ports:
-      - "8080:8080" # Expose Spring Boot backend on localhost:8080
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - app-network
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: furniture-store-postgres
+    environment:
+      - POSTGRES_USER=furniture_store
+      - POSTGRES_PASSWORD=furniture_store
+      - POSTGRES_DB=furniture_store
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+  backend:
+    build:
+      context: ../backend
+    container_name: furniture-store-backend
+    ports:
+      - "8080:8080"
+    environment:
+      - SERVER_PORT=8080
+      - MONGODB_URI=mongodb://mongo:27017/furniture_store
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - JWT_EXPIRATION=${JWT_EXPIRATION:-86400000}
+      - JWT_REFRESH_EXPIRATION=${JWT_REFRESH_EXPIRATION:-604800000}
+    depends_on:
+      - mongo
     networks:
       - app-network
 
   frontend:
-    image: your-frontend-image:latest # Replace with your Next.js image name
-    container_name: frontend-service
+    build:
+      context: .
+      args:
+        - NEXT_PUBLIC_GRAPHQL_URL=http://localhost:8080/graphql
+        - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+        - DATABASE_URL=postgresql://furniture_store:furniture_store@postgres:5432/furniture_store
+        - DIRECT_URL=postgresql://furniture_store:furniture_store@postgres:5432/furniture_store
+        - SUPABASE_URL=${SUPABASE_URL}
+        - SUPABASE_KEY=${SUPABASE_KEY}
+        - ADMIN_USER_ID=${ADMIN_USER_ID}
+        - SECRET=${SECRET}
+        - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
+    container_name: furniture-store-frontend
     ports:
-      - "3000:3000" # Expose Next.js frontend on localhost:3000
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://furniture_store:furniture_store@postgres:5432/furniture_store
+      - DIRECT_URL=postgresql://furniture_store:furniture_store@postgres:5432/furniture_store
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - ADMIN_USER_ID=${ADMIN_USER_ID}
+      - SECRET=${SECRET}
+      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
+    depends_on:
+      - backend
+      - postgres
     networks:
       - app-network
-    environment:
-      - NEXT_PUBLIC_API_URL=http://backend-service:8080 # Use the backend's service name to connect
 
 networks:
   app-network:
     driver: bridge
-  
+
+volumes:
+  mongo-data:
+  postgres-data:
