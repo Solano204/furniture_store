@@ -11,6 +11,7 @@ type Query {
     getReviewUserProduct(productId: String!, clerkId: String!): Boolean
     getUserReviews(clerkId: String!): [Review]
     getOrders: [Order]
+    getInfoUser(username: String!): User
 }
 
 # Mutation type - mutations related to creating, updating, or deleting data always the name of the methon in lowerCase
@@ -102,7 +103,7 @@ type Review {
     comment: String
     clerkId: String!
     createdAt: String!
-    updateAt: String
+    updatedAt: String
     product: Product
 }
 
@@ -145,4 +146,13 @@ type AuthenticationResponse {
   accessToken: String!
   refreshToken: String!
   clerkId: String!
+}
+
+# Deliberately excludes the password hash - UserController#user only ever
+# returns this over the wire, never the User entity directly.
+type User {
+  id: String!
+  firstname: String
+  lastname: String
+  username: String!
 }

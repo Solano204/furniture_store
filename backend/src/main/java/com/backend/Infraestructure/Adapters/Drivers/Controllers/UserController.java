@@ -33,7 +33,7 @@ public class UserController {
     }
 
     @QueryMapping(name = "getInfoUser")
-    public Mono<User> user(String username) {
+    public Mono<User> user(@Argument(name = "username") String username) {
         return service.findByUsername(username);
 }
 }
