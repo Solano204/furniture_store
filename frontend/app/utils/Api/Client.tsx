@@ -10,7 +10,7 @@ export const setAccessToken = (token: string) => {
 
 const createApolloClient = () => {
   const httpLink = new HttpLink({
-    uri: "http://localhost:8080/graphql",
+    uri: process.env.NEXT_PUBLIC_GRAPHQL_URL || "http://localhost:8080/graphql",
   });
 
   const authLink = setContext((_, { headers }) => ({
