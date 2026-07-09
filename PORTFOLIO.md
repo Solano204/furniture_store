@@ -1,0 +1,13 @@
+FURNITURE STORE — Hexagonal GraphQL Backend + Next.js Storefront
+
+**Hexagonal GraphQL/REST Backend**: I designed a Spring Boot 3.3 backend (Java 21, reactive MongoDB) around ports-and-adapters: application-layer ports define the use cases, and driver adapters (REST controllers + a GraphQL API) and driven adapters (Mongo repositories) plug into them independently — so the same product/order/review/favorite logic is reachable through both REST and GraphQL without duplicating business rules.
+
+**JWT Auth with Role-Based GraphQL Security**: I implemented a full JWT auth flow (login, refresh, logout, token revocation) with a `GraphQlSecurityInterceptor` enforcing role checks per-field, not just per-endpoint, so GraphQL queries/mutations respect the same authorization rules as the REST controllers.
+
+**Next.js Storefront with GraphQL + Clerk**: I built the customer-facing storefront in Next.js 15 (React 19) using Apollo Client against the backend's GraphQL API, Clerk for session management, and Redux Toolkit for client-side cart state, with a component library built on Radix UI primitives.
+
+**Domain Coverage**: Product catalog with reviews, favorites, and order history — reviews and favorites are tied to the authenticated user, and orders carry the cart snapshot at time of purchase.
+
+Technologies: Java 21 (Spring Boot 3.3, Spring WebFlux, Spring Security, GraphQL Java), MongoDB (reactive driver), Next.js 15 / React 19 / TypeScript, Apollo Client, Clerk, Redux Toolkit, Radix UI + Tailwind CSS.
+
+*Note: the frontend also ships a Prisma schema targeting PostgreSQL (Product, Cart, CartItem, Review) — none of the frontend's active data-fetching code (`app/utils/Api/Actions`, `app/utils/Api/Queries`) calls it, so it looks like a leftover from an earlier iteration rather than a second live data layer. Worth confirming and removing if unused.*
