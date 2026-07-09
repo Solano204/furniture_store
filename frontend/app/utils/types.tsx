@@ -22,10 +22,10 @@ export type CartState = {
   orderTotal: number;
 };
 
-
-
-
-import { Prisma } from "@prisma/client";
-export type CartItemWithProduct = Prisma.CartItemGetPayload<{
-  include: { product: true };
-}>;
+// The Prisma schema stores `product` as a denormalized Json snapshot on
+// CartItem (not a relation - see prisma/schema.prisma), so this is just the
+// generated CartItem model type as-is; CartItemsList parses the `product`
+// field itself. Aliased on import since this file already declares its own
+// unrelated `CartItem` type above.
+import { CartItem as PrismaCartItem } from "@prisma/client";
+export type CartItemWithProduct = PrismaCartItem;
