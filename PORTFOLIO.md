@@ -8,6 +8,6 @@ FURNITURE STORE — Hexagonal GraphQL Backend + Next.js Storefront
 
 **Domain Coverage**: Product catalog with reviews, favorites, and order history — reviews and favorites are tied to the authenticated user, and orders carry the cart snapshot at time of purchase.
 
-Technologies: Java 21 (Spring Boot 3.3, Spring WebFlux, Spring Security, GraphQL Java), MongoDB (reactive driver), Next.js 15 / React 19 / TypeScript, Apollo Client, Clerk, Redux Toolkit, Radix UI + Tailwind CSS.
+Technologies: Java 21 (Spring Boot 3.3, Spring WebFlux, Spring Security, GraphQL Java), MongoDB (reactive driver), Next.js 15 / React 19 / TypeScript, Apollo Client, Clerk, Redux Toolkit, Prisma/PostgreSQL, Radix UI + Tailwind CSS.
 
-*Note: the frontend also ships a Prisma schema targeting PostgreSQL (Product, Cart, CartItem, Review) — none of the frontend's active data-fetching code (`app/utils/Api/Actions`, `app/utils/Api/Queries`) calls it, so it looks like a leftover from an earlier iteration rather than a second live data layer. Worth confirming and removing if unused.*
+*Note: the frontend uses a mixed-persistence setup — product/review/favorite data comes from the Spring GraphQL backend via Apollo Client, while cart and order state is persisted separately through Prisma/PostgreSQL (`app/utils/cartActionPrisma.tsx`, `orderActionBase.tsx`, consumed by `CartItemsList`/`CartTotals`/`ProductsGrid`). Also, Clerk is wired up for its React components but session validation itself runs through a custom cookie system (`middleware.ts`), not Clerk's own auth.*
