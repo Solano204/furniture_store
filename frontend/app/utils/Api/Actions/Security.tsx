@@ -1,11 +1,10 @@
 "use server";
-import { gql } from "@apollo/client";
 import { getClient } from "../Client";
 import {
-  getAuthenticateMutation,
-  getChangePasswordMutation,
-  getLogoutMutation,
-  getRegisterMutation,
+  AUTHENTICATE_MUTATION,
+  CHANGE_PASSWORD_MUTATION,
+  LOGOUT_MUTATION,
+  REGISTER_MUTATION,
 } from "../Queries/Security";
 import {
   SessionPayload,
@@ -33,20 +32,12 @@ export const login = async (
     // Validate the user data
     const validatedUser = validateSession(userSchema, userData);
 
-    // GraphQL mutation
-    const query = gql`
-      mutation {
-        authenticate(input: { username: "${username}", password: "${password}" }) {
-          accessToken
-          refreshToken
-          clerkId
-        }
-      }
-    `;
-
     // Perform mutation
     const client = getClient();
-    const { data } = await client.mutate({ mutation: query });
+    const { data } = await client.mutate({
+      mutation: AUTHENTICATE_MUTATION,
+      variables: { username, password },
+    });
     const { accessToken, refreshToken, clerkId } = data.authenticate;
 
     // Set the token globally
@@ -80,12 +71,8 @@ export const changePassword = async (
   const confirmationPassword = formData.get("confirmPassword") as string;
 
   const { data } = await getClient().mutate({
-    mutation: getChangePasswordMutation(
-      username,
-      currentPassword,
-      newPassword,
-      confirmationPassword
-    ),
+    mutation: CHANGE_PASSWORD_MUTATION,
+    variables: { username, currentPassword, newPassword, confirmationPassword },
   });
   // data.changePassword;
   return { message: "password changed succesfuly" }; // Assuming `data.changePassword` contains the message
@@ -95,14 +82,9 @@ export const logout = async (
   prevState: any,
   formData: FormData
 ): Promise<{ message: string }> => {
-  const query = gql`
-    mutation {
-      logout
-    }
-  `;
   const s = getClient();
   revalidatePath("/");
-  await s.mutate({ mutation: query });
+  await s.mutate({ mutation: LOGOUT_MUTATION });
   await deleteSession();
   redirect("/");
 };
@@ -119,26 +101,12 @@ export const register = async (
     // Validate the user data
     const validatedUser = validateSession(userSchema, userData);
 
-    // GraphQL mutation
-    const query = gql`
-    mutation {
-      register(
-        input: {
-          username: "${username}",
-          password: "${password}",
-          role: "${"USER"}"
-        }
-      ) {
-        accessToken
-        refreshToken
-        clerkId
-      }
-    }
-  `;
-
     // Perform mutation
     const client = getClient();
-    const { data } = await client.mutate({ mutation: query });
+    const { data } = await client.mutate({
+      mutation: REGISTER_MUTATION,
+      variables: { username, password },
+    });
     const { accessToken, refreshToken, clerkId } = data.register;
 
     // Set the token globally
@@ -189,15 +157,11 @@ export const auth = async (): Promise<User> => {
 };
 
 export const getAdminUser = async (): Promise<User2> => {
-  try {
-    const user = await currentUser();
-    if (user == null || user?.id !== process.env.ADMIN_USER_ID) {
-    }
-    return user;
-  } catch (error) {
-    console.error("Error during authentication:", error); // Log the error
-    throw new Error("Unauthorized access"); // Return null if there's an error
+  const user = await currentUser();
+  if (user == null || user.id !== process.env.ADMIN_USER_ID) {
+    redirect("/");
   }
+  return user;
 };
 
 export const currentUser = async (): Promise<User2> => {

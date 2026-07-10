@@ -3,13 +3,12 @@ import { getClient } from "../Client";
 import { fetchOrCreateCart } from "../../cartActionBase";
 import db from "@/app/utils/db";
 import { redirect } from "next/navigation";
-import { auth, currentUser, getAdminUser } from "../Actions/Security";
+import { currentUser, getAdminUser } from "../Actions/Security";
 import {
-  createOrderMutation,
-  getOrdersQuery,
-  getUserOrdersQuery,
+  CREATE_ORDER_MUTATION,
+  GET_ORDERS_QUERY,
+  GET_USER_ORDERS_QUERY,
 } from "../Queries/Order";
-import { gql } from "@apollo/client";
 
 // Function to create an order
 export const createOrder = async (
@@ -25,25 +24,15 @@ export const createOrder = async (
     });
 
     const { data } = await getClient().mutate({
-      mutation: gql`
-        mutation {
-          createOrder(input: {
-            clerkId: "${user.id}",
-            products: ${cart.numItemsInCart},
-            orderTotal: ${cart.orderTotal},
-            tax: ${cart.tax},
-            shipping: ${cart.shipping},
-            username: "${user.username}"
-          }) {
-            id
-            products
-            orderTotal
-            tax
-            shipping
-            username
-          }
-        }
-      `,
+      mutation: CREATE_ORDER_MUTATION,
+      variables: {
+        clerkId: user.id,
+        products: cart.numItemsInCart,
+        orderTotal: cart.orderTotal,
+        tax: cart.tax,
+        shipping: cart.shipping,
+        username: user.username,
+      },
     });
 
     // Delete cart after the order is created
@@ -56,7 +45,7 @@ export const createOrder = async (
   } catch (error) {
     return renderError(error); // Call the renderError method to handle errors
   }
-  redirect("/orders"); 
+  redirect("/orders");
 };
 
 // Helper function to render errors
@@ -83,22 +72,9 @@ export type Order = {
 export const fetchUserOrders = async (): Promise<Order[]> => {
   const user = await currentUser();
 
-  // Fetch user orders query
   const { data } = await getClient().query({
-    query: gql`
-      query {
-        getUserOrders(clerkId: "${user.id}") {
-          id
-          clerkId
-          products
-          orderTotal
-          tax
-          shipping
-          username
-          createdAt
-        }
-      }
-    `,
+    query: GET_USER_ORDERS_QUERY,
+    variables: { clerkId: user.id },
   });
 
   return data.getUserOrders; // Assuming 'orders' is the correct field in the response
@@ -107,26 +83,11 @@ export const fetchUserOrders = async (): Promise<Order[]> => {
 
 // Fetch all orders for the admin user
 export const fetchAdminOrders = async (): Promise<Order[]> => {
-  const user = await getAdminUser();
+  await getAdminUser();
 
-   // Fetch all orders query
-   const { data } = await getClient().query({
-    query: gql`
-      query {
-        getOrders {
-          id
-          username
-           createdAt
-          clerkId
-          products
-          orderTotal
-          tax
-          shipping
-        }
-      }
-    `,
+  const { data } = await getClient().query({
+    query: GET_ORDERS_QUERY,
   });
 
-  console.log("data Orders", data.getOrders);
   return data.getOrders; // Assuming 'orders' is the correct field in the response
 };
