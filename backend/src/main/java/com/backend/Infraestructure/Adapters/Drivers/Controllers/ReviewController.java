@@ -8,6 +8,7 @@ import org.springframework.stereotype.Controller;
 import com.backend.Aplication.Ports.Drivers.IReviewService;
 import com.backend.Infraestructure.Adapters.Drivens.Entities.Review;
 import com.backend.Infraestructure.Adapters.Drivens.Graphql.DocumentMappings;
+import com.backend.Infraestructure.Adapters.Drivers.Security.OwnershipGuard;
 
 import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Flux;
@@ -18,12 +19,15 @@ import reactor.core.publisher.Mono;
 public class ReviewController {
 
     private final IReviewService reviewService;
+    private final OwnershipGuard ownershipGuard;
 
     @MutationMapping(name = "createReview")
     public Mono<Review> createReview(@Argument(name = "input") DocumentMappings.CreateReviewInput input) {
-        return reviewService.createReview(input);
+        return ownershipGuard.verifyOwnClerkId(input.clerkId())
+                .then(reviewService.createReview(input));
     }
 
+    // Public - product reviews are shown on the storefront to any visitor.
     @QueryMapping(name = "getProductReviews")
     public Flux<Review> getProductReviews(@Argument(name = "productId") String productId) {
         return reviewService.getProductReviews(productId);
@@ -32,9 +36,11 @@ public class ReviewController {
     @QueryMapping(name = "getReviewUserProduct")
     public Mono<Boolean> getReviewUserProduct(@Argument(name = "productId") String productId,
             @Argument(name = "clerkId") String clerkId) {
-        return reviewService.getReviewUserProduct(productId, clerkId);
+        return ownershipGuard.verifyOwnClerkId(clerkId)
+                .then(reviewService.getReviewUserProduct(productId, clerkId));
     }
 
+    // Public - aggregate rating shown on the storefront to any visitor.
     @QueryMapping(name = "getReviewAggregate")
     public Mono<DocumentMappings.ReviewAggregate> getReviewAggregate(@Argument(name = "productId") String productId) {
         return reviewService.getReviewAggregate(productId);
@@ -42,12 +48,13 @@ public class ReviewController {
 
     @QueryMapping(name = "getUserReviews")
     public Flux<Review> getUserReviews(@Argument(name = "clerkId") String clerkId) {
-        return reviewService.getUserReviews(clerkId);
+        return ownershipGuard.verifyOwnClerkId(clerkId).thenMany(reviewService.getUserReviews(clerkId));
     }
 
     @MutationMapping(name = "deleteReview")
     public Mono<Boolean> deleteReview(@Argument(name = "id") String id,
             @Argument(name = "clerkId") String clerkId) {
-        return reviewService.deleteReview(id, clerkId);
+        return ownershipGuard.verifyOwnClerkId(clerkId)
+                .then(reviewService.deleteReview(id, clerkId));
     }
 }

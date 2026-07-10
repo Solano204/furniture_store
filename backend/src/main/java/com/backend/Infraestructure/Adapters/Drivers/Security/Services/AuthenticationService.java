@@ -40,19 +40,12 @@ public class AuthenticationService {
                     "The Username '" + request.username() + "' is already registered. Please use a different Username."
                 );
             }        
-            // Convert the role string to UserRole, default to USER if invalid
-            UserRole userRole;
-            try {
-                userRole = UserRole.valueOf(request.role().toUpperCase()); // Convert to uppercase to match enum names
-            } catch (IllegalArgumentException | NullPointerException e) {
-                userRole = UserRole.USER; // Default role
-            }
-
-            // Build the user
+            // Self-registration always creates a plain USER account - role is never
+            // taken from client input, or anyone could register as ADMIN.
             var user = User.builder()
                 .username(request.username())
                 .password(passwordEncoder.encode(request.password()))
-                .permissions(Set.of(new Role(userRole)))
+                .permissions(Set.of(new Role(UserRole.USER)))
                 .build();
 
             // Save user reactively and generate tokens

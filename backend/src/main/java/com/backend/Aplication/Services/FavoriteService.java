@@ -58,7 +58,14 @@ public class FavoriteService implements IFavoriteService {
     }
 
     @Override
-    public Mono<Boolean> deleteFavorite(String favoriteId) {
-        return favoriteRepository.deleteById(favoriteId).then(Mono.just(true));
+    public Mono<Boolean> deleteFavorite(String favoriteId, String requestingClerkId) {
+        // Mirrors ReviewService#deleteReview: a favorite that doesn't exist and
+        // one that exists but isn't owned by the requester both just report
+        // false, rather than the service reaching into the driver layer to
+        // throw a GraphQL-flavored error.
+        return favoriteRepository.findById(favoriteId)
+                .filter(favorite -> favorite.getClerkId().equals(requestingClerkId))
+                .flatMap(favorite -> favoriteRepository.deleteById(favoriteId).thenReturn(true))
+                .defaultIfEmpty(false);
     }
 }

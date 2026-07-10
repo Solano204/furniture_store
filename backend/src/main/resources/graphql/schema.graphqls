@@ -124,10 +124,12 @@ type Order {
     createdAt: String!
 }
 
+# role is deliberately not client-settable here - self-registration always
+# creates a plain USER account (see AuthenticationService#register); granting
+# ADMIN/MODERATOR happens out of band, never from client input.
 input RegisterRequest {
   username: String!
   password: String!
-  role: String!
 }
 
 input AuthenticationRequest {

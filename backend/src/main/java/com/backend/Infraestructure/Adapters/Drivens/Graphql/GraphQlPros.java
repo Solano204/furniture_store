@@ -11,6 +11,10 @@ public class GraphQlPros{
 
     private List<String> queriesToCheck;
     private List<String> mutationsToCheck;
+    // Query/mutation field names that require ROLE_ADMIN even though they're
+    // already behind the general authenticated check (e.g. catalog management,
+    // the all-users order list) - see GraphQlSecurityInterceptor.
+    private List<String> adminOperations;
 
     // Getters and Setters
     public List<String> getQueriesToCheck() {
@@ -27,5 +31,13 @@ public class GraphQlPros{
 
     public void setMutationsToCheck(List<String> mutationsToCheck) {
         this.mutationsToCheck = mutationsToCheck;
+    }
+
+    public List<String> getAdminOperations() {
+        return adminOperations;
+    }
+
+    public void setAdminOperations(List<String> adminOperations) {
+        this.adminOperations = adminOperations;
     }
 }

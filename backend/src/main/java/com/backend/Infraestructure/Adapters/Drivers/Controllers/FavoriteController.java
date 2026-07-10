@@ -8,6 +8,7 @@ import org.springframework.stereotype.Controller;
 import com.backend.Aplication.Ports.Drivers.IFavoriteService;
 import com.backend.Infraestructure.Adapters.Drivens.Entities.Favorite;
 import com.backend.Infraestructure.Adapters.Drivens.Graphql.DocumentMappings;
+import com.backend.Infraestructure.Adapters.Drivers.Security.OwnershipGuard;
 
 import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Flux;
@@ -18,26 +19,30 @@ import reactor.core.publisher.Mono;
 public class FavoriteController {
 
     private final IFavoriteService favoriteService;
+    private final OwnershipGuard ownershipGuard;
 
     @QueryMapping(name = "getFavorites")
     public Flux<Favorite> getFavorites(@Argument(name = "clerkId") String clerkId) {
-        return favoriteService.getFavorites(clerkId);
+        return ownershipGuard.verifyOwnClerkId(clerkId).thenMany(favoriteService.getFavorites(clerkId));
     }
 
     @QueryMapping(name = "getFavorite")
     public Mono<Favorite> getFavorite(
             @Argument(name = "productId") String productId,
             @Argument(name = "clerkId") String clerkId) {
-        return favoriteService.getFavorite(productId, clerkId);
+        return ownershipGuard.verifyOwnClerkId(clerkId)
+                .then(favoriteService.getFavorite(productId, clerkId));
     }
 
     @MutationMapping(name = "addFavorite")
     public Mono<Favorite> addFavorite(@Argument(name = "input") DocumentMappings.AddFavoriteInput input) {
-        return favoriteService.addFavorite(input);
+        return ownershipGuard.verifyOwnClerkId(input.clerkId())
+                .then(favoriteService.addFavorite(input));
     }
 
     @MutationMapping(name = "deleteFavorite")
     public Mono<Boolean> deleteFavorite(@Argument(name = "favoriteId") String favoriteId) {
-        return favoriteService.deleteFavorite(favoriteId);
+        return ownershipGuard.currentUserId()
+                .flatMap(userId -> favoriteService.deleteFavorite(favoriteId, userId));
     }
 }

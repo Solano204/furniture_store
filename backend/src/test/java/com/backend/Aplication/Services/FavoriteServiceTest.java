@@ -2,6 +2,8 @@ package com.backend.Aplication.Services;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -58,11 +60,38 @@ class FavoriteServiceTest {
     }
 
     @Test
-    void deleteFavorite_delegatesAndReturnsTrue() {
+    void deleteFavorite_ownedByRequester_deletesAndReturnsTrue() {
+        Favorite favorite = new Favorite();
+        favorite.setId("fav-1");
+        favorite.setClerkId("clerk-1");
+        when(favoriteRepository.findById("fav-1")).thenReturn(Mono.just(favorite));
         when(favoriteRepository.deleteById("fav-1")).thenReturn(Mono.empty());
 
-        StepVerifier.create(favoriteService.deleteFavorite("fav-1"))
+        StepVerifier.create(favoriteService.deleteFavorite("fav-1", "clerk-1"))
                 .expectNext(true)
+                .verifyComplete();
+    }
+
+    @Test
+    void deleteFavorite_ownedBySomeoneElse_returnsFalseWithoutDeleting() {
+        Favorite favorite = new Favorite();
+        favorite.setId("fav-1");
+        favorite.setClerkId("clerk-1");
+        when(favoriteRepository.findById("fav-1")).thenReturn(Mono.just(favorite));
+
+        StepVerifier.create(favoriteService.deleteFavorite("fav-1", "someone-else"))
+                .expectNext(false)
+                .verifyComplete();
+
+        verify(favoriteRepository, never()).deleteById(any(String.class));
+    }
+
+    @Test
+    void deleteFavorite_doesNotExist_returnsFalse() {
+        when(favoriteRepository.findById("missing")).thenReturn(Mono.empty());
+
+        StepVerifier.create(favoriteService.deleteFavorite("missing", "clerk-1"))
+                .expectNext(false)
                 .verifyComplete();
     }
 }

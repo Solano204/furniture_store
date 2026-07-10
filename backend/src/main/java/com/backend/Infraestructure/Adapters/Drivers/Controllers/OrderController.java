@@ -8,6 +8,7 @@ import org.springframework.stereotype.Controller;
 import com.backend.Aplication.Ports.Drivers.IOrderService;
 import com.backend.Infraestructure.Adapters.Drivens.Entities.Order;
 import com.backend.Infraestructure.Adapters.Drivens.Graphql.DocumentMappings;
+import com.backend.Infraestructure.Adapters.Drivers.Security.OwnershipGuard;
 
 import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Flux;
@@ -18,17 +19,21 @@ import reactor.core.publisher.Mono;
 public class OrderController {
 
     private final IOrderService orderService;
+    private final OwnershipGuard ownershipGuard;
 
     @MutationMapping(name = "createOrder")
     public Mono<Order> createOrder(@Argument(name = "input") DocumentMappings.CreateOrderInput input) {
-        return orderService.createOrder(input);
+        return ownershipGuard.verifyOwnClerkId(input.clerkId())
+                .then(orderService.createOrder(input));
     }
 
     @QueryMapping(name = "getUserOrders")
     public Flux<Order> getUserOrders(@Argument(name = "clerkId") String clerkId) {
-        return orderService.getUserOrders(clerkId);
+        return ownershipGuard.verifyOwnClerkId(clerkId).thenMany(orderService.getUserOrders(clerkId));
     }
 
+    // Admin-only - enforced by GraphQlSecurityInterceptor (graphql.admin-operations),
+    // since this returns every user's orders, not just the caller's.
     @QueryMapping(name = "getOrders")
     public Flux<Order> getOrders() {
         return orderService.getOrders();

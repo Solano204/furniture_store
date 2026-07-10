@@ -13,5 +13,5 @@ public interface IFavoriteService {
 
     Mono<Favorite> addFavorite(DocumentMappings.AddFavoriteInput input);
 
-    Mono<Boolean> deleteFavorite(String favoriteId);
+    Mono<Boolean> deleteFavorite(String favoriteId, String requestingClerkId);
 }

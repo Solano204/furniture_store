@@ -13,6 +13,7 @@ import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.ReactiveAuthenticationManager;
@@ -72,29 +73,34 @@ class AuthenticationServiceTest {
         when(userRepository.existsByUsername("carlos")).thenReturn(Mono.just(true));
 
         StepVerifier.create(authenticationService.register(
-                        new DocumentMappings.RegisterRequests("carlos", "pw", "USER")))
+                        new DocumentMappings.RegisterRequests("carlos", "pw")))
                 .expectErrorMatches(err -> err instanceof GraphQLCustomException
                         && ((GraphQLCustomException) err).getErrorCode().equals("Username_ALREADY_EXISTS"))
                 .verify();
     }
 
     @Test
-    void register_defaultsToUserRoleWhenRoleInvalid() {
+    void register_alwaysAssignsUserRole() {
+        // RegisterRequests carries no role field - self-registration must never
+        // be able to create an ADMIN/MODERATOR account.
         User saved = buildUser();
+        ArgumentCaptor<User> savedUserCaptor = ArgumentCaptor.forClass(User.class);
         when(userRepository.existsByUsername("carlos")).thenReturn(Mono.just(false));
         when(passwordEncoder.encode("pw")).thenReturn("encoded-pw");
-        when(userRepository.save(any(User.class))).thenReturn(Mono.just(saved));
+        when(userRepository.save(savedUserCaptor.capture())).thenReturn(Mono.just(saved));
         when(jwtService.generateToken(saved)).thenReturn(Mono.just("access-token"));
         when(jwtService.generateRefreshToken(saved)).thenReturn(Mono.just("refresh-token"));
 
         StepVerifier.create(authenticationService.register(
-                        new DocumentMappings.RegisterRequests("carlos", "pw", "not-a-real-role")))
+                        new DocumentMappings.RegisterRequests("carlos", "pw")))
                 .assertNext(response -> {
                     assertEquals("access-token", response.accessToken());
                     assertEquals("refresh-token", response.refreshToken());
                     assertEquals("u1", response.clerkId());
                 })
                 .verifyComplete();
+
+        assertEquals(Set.of(new Role(UserRole.USER)), savedUserCaptor.getValue().getPermissions());
     }
 
     @Test
