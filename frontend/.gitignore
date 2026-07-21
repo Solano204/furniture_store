@@ -36,6 +36,9 @@ yarn-error.log*
 .env*
 !.env.example
 
+# docker-compose secrets (Doc 2) - local dev values, never real credentials
+secrets/
+
 # vercel
 .vercel
 

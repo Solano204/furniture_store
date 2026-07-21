@@ -1,3 +1,18 @@
+# Doc 3 note: node:20-slim is pinned to major-version-only, same
+# reproducibility gap as the backend Dockerfile - not pinning to an exact
+# patch/digest without network access to verify a current tag exists.
+#
+# Doc 3 note: `next.config.ts` already sets `output: "standalone"`, and the
+# runner stage below only copies `.next/standalone` + `.next/static` +
+# `public` - Prisma's generated client includes a native query-engine binary
+# that Next.js's standalone-output file tracing doesn't always detect
+# correctly (a known Next.js+Prisma gotcha, not specific to this project).
+# If the built image fails at runtime with a "Cannot find module
+# '.prisma/client'" or a missing query-engine error, the fix is copying
+# `node_modules/.prisma` and `node_modules/@prisma/client` from the builder
+# stage into the runner stage explicitly - not changed here since I can't
+# run the build to confirm whether it's actually needed for this project's
+# Prisma version/schema.
 FROM node:20-slim AS base
 
 FROM base AS builder
@@ -7,6 +22,11 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci
 COPY . .
+
+# @prisma/client's generated client isn't checked into git and there's no
+# postinstall hook wiring this up - db.ts imports PrismaClient directly, so
+# without this the build fails in any clean environment (CI, this image).
+RUN npx prisma generate
 
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production

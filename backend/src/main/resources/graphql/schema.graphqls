@@ -1,3 +1,8 @@
+# Exact-precision decimal for money fields - see BigDecimalScalar.java. Not
+# graphql-java's built-in Float: that round-trips through a binary double and
+# can silently lose precision on money values.
+scalar BigDecimal
+
 # Query type - queries related to fetching data
 type Query {
     getFavorites(clerkId: String!): [Favorite]
@@ -27,7 +32,8 @@ type Mutation {
     deleteReview(id: String!, clerkId: String!): Boolean
     register(input: RegisterRequest!): AuthenticationResponse!
     authenticate(input: AuthenticationRequest!): AuthenticationResponse!
-    refreshToken(refreshToken: String!): Boolean!
+    # Returns the new access token, or null if the refresh token is invalid/expired.
+    refreshToken(refreshToken: String!): String
     changePassword(input: ChangePasswordRequest!): String!
     logout: String
 }
@@ -67,9 +73,9 @@ input CreateReviewInput {
 input CreateOrderInput {
     clerkId: String!
     products: Int
-    orderTotal: Float!  # Changed from BigDecimal to Float
-    tax: Float!         # Changed from BigDecimal to Float
-    shipping: Float!    # Changed from BigDecimal to Float
+    orderTotal: BigDecimal!
+    tax: BigDecimal!
+    shipping: BigDecimal!
     username: String!
 }
 
@@ -117,9 +123,9 @@ type Order {
     id: String!
     clerkId: String!
     products: Int
-    orderTotal: Float!   # Changed from BigDecimal to Float
-    tax: Float!          # Changed from BigDecimal to Float
-    shipping: Float!     # Changed from BigDecimal to Float
+    orderTotal: BigDecimal!
+    tax: BigDecimal!
+    shipping: BigDecimal!
     username: String!
     createdAt: String!
 }

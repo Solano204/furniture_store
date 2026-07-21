@@ -18,13 +18,10 @@ public class LogoutService {
         // Extract the Authorization header from the request
         String authHeader = request.getHeaders().getFirst("Authorization");
 
-
-        System.out.println("AuthHeader: " + authHeader);
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             return Mono.just(false);
         }
 
-        System.out.println("AuthHeader: " + authHeader);
         // Extract the JWT token
         String jwt = authHeader.substring(7);
 

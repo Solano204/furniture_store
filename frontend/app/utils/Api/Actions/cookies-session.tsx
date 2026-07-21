@@ -48,19 +48,9 @@ export async function createSession(payload: SessionPayload) {
   revalidatePath("/");
 }
 
-export async function verifySession() {
-  const cookie = (await cookies()).get("sessionita")?.value;
-  const session = await decrypt(cookie);
-
-  if (!session?.userId) {
-    redirect("/");
-  }
-
-  return { isAuth: true, userId: Number(session.userId) };
-}
-
-
 // Update the time for the session
+// Not currently called anywhere (e.g. from middleware) - session cookies are
+// issued with a fixed 1h expiry (see createSession) and never slid forward.
 export async function updateSession() {
   const session = (await cookies()).get("sessionita")?.value;
   const payload = await decrypt(session);
@@ -104,20 +94,4 @@ export async function getDataFromCookie(): Promise<SessionPayload | undefined> {
 
   // Return null if the session is invalid or doesn't match the structure
   return undefined;
-}
-
-
-
-async function isSessionPayload(payload: any): Promise<boolean> {
-  if (!payload || typeof payload !== "object") {
-    return false;
-  }
-
-  return (
-    typeof payload.userId === "string" &&
-    typeof payload.username === "string" &&
-    typeof payload.refreshToken === "string" &&
-    typeof payload.jwt === "string" &&
-    (typeof payload.expiresAt === "string" || payload.expiresAt instanceof Date) // Accept string or Date for `expiresAt`
-  );
 }

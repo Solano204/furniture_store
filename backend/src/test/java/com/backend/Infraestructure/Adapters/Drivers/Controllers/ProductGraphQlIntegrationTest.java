@@ -9,9 +9,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.graphql.test.tester.HttpGraphQlTester;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.testcontainers.containers.MongoDBContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.backend.Infraestructure.Adapters.Drivens.Entities.Product;
 import com.backend.Infraestructure.Adapters.Drivens.Repositories.ProductRepository;
@@ -19,11 +23,25 @@ import com.backend.Infraestructure.Adapters.Drivens.Repositories.ProductReposito
 /**
  * Exercises the real request pipeline end to end: HTTP -> GraphQL ->
  * GraphQlSecurityInterceptor (public-query bypass) -> ProductController ->
- * ProductService -> ProductRepository -> the real local MongoDB.
+ * ProductService -> ProductRepository -> a real (ephemeral) MongoDB.
+ *
+ * Was pointed at "the real local MongoDB" (application-test.properties'
+ * spring.data.mongodb.uri=mongodb://localhost:27017/...) - only passed if
+ * you happened to have Mongo running locally, and shared a database with
+ * whatever else was using that instance. @ServiceConnection (Spring Boot
+ * 3.1+, available here since this project is on 3.3.5 - unlike
+ * food-ordering-system's 3.0.5, no manual @DynamicPropertySource needed)
+ * auto-wires this container's connection details, overriding the
+ * application-test.properties URI for the duration of this test.
  */
+@Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
 class ProductGraphQlIntegrationTest {
+
+    @Container
+    @ServiceConnection
+    static final MongoDBContainer MONGO = new MongoDBContainer("mongo:7");
 
     private static final String MARKER_COMPANY = "IntegrationTestCo";
 

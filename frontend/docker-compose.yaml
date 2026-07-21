@@ -1,29 +1,118 @@
 version: '3.9'
 
+# Doc 2 hardening notes:
+# - Two networks (data-network, app-network) instead of one flat network:
+#   mongo/postgres only need to be reachable by the services that actually
+#   touch them; backend and frontend are each multi-homed onto both since
+#   backend needs mongo and frontend needs postgres directly (Prisma) plus
+#   the backend's GraphQL endpoint. Not marking either network `internal:
+#   true` - every service here also publishes a host port, and whether
+#   published ports stay reachable on an internal bridge network is
+#   inconsistent across Docker Engine/Desktop versions (same reasoning as
+#   food-ordering-system's Doc 2).
+# - Mongo previously ran with zero authentication - a real vulnerability
+#   class (unauthenticated MongoDB is one of the most common real-world data
+#   exposure vectors), made worse by 27017 being published straight to the
+#   host. Added root auth via a Docker secret file; backend now connects
+#   with credentials (see application.properties).
+# - Postgres password moved from a plaintext `POSTGRES_PASSWORD=` env var to
+#   a secret file (official postgres image supports POSTGRES_PASSWORD_FILE
+#   natively).
+# - Healthchecks + `condition: service_healthy` added throughout - backend
+#   previously started before Mongo was actually ready to accept
+#   connections, frontend before backend/postgres were.
+# - No restart policy existed anywhere before (Compose default is "no" - a
+#   crashed container just stays dead). unless-stopped for the two
+#   databases, on-failure for the two app services.
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-security: &default-security
+  security_opt:
+    - no-new-privileges:true
+
+secrets:
+  mongo_root_password:
+    file: ./secrets/mongo_root_password.txt
+  postgres_password:
+    file: ./secrets/postgres_password.txt
+
 services:
   mongo:
     image: mongo:7
     container_name: furniture-store-mongo
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD_FILE=/run/secrets/mongo_root_password
     ports:
       - "27017:27017"
     volumes:
       - mongo-data:/data/db
     networks:
-      - app-network
+      - data-network
+    secrets:
+      - mongo_root_password
+    restart: unless-stopped
+    mem_limit: 768m
+    cpus: 1.0
+    logging: *default-logging
+    <<: *default-security
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
 
   postgres:
     image: postgres:16-alpine
     container_name: furniture-store-postgres
     environment:
       - POSTGRES_USER=furniture_store
-      - POSTGRES_PASSWORD=furniture_store
+      - POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password
       - POSTGRES_DB=furniture_store
     ports:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     networks:
+      - data-network
+    secrets:
+      - postgres_password
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
+    logging: *default-logging
+    <<: *default-security
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U furniture_store"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+  zipkin:
+    image: openzipkin/zipkin:3.3
+    container_name: furniture-store-zipkin
+    ports:
+      - "9411:9411"
+    networks:
       - app-network
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
+    logging: *default-logging
+    <<: *default-security
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:9411/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 30s
 
   backend:
     build:
@@ -33,14 +122,38 @@ services:
       - "8080:8080"
     environment:
       - SERVER_PORT=8080
-      - MONGODB_URI=mongodb://mongo:27017/furniture_store
+      - MONGODB_HOST=mongo
+      - MONGODB_PORT=27017
+      - MONGODB_DATABASE=furniture_store
+      - MONGODB_USERNAME=root
+      - MONGODB_AUTH_DATABASE=admin
+      - SPRING_CONFIG_IMPORT=optional:configtree:/run/secrets/
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - JWT_EXPIRATION=${JWT_EXPIRATION:-86400000}
       - JWT_REFRESH_EXPIRATION=${JWT_REFRESH_EXPIRATION:-604800000}
+      - ZIPKIN_ENDPOINT=http://zipkin:9411/api/v2/spans
     depends_on:
-      - mongo
+      mongo:
+        condition: service_healthy
+      zipkin:
+        condition: service_healthy
     networks:
+      - data-network
       - app-network
+    secrets:
+      - source: mongo_root_password
+        target: spring.data.mongodb.password
+    restart: on-failure
+    mem_limit: 768m
+    cpus: 1.0
+    logging: *default-logging
+    <<: *default-security
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8080/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 45s
 
   frontend:
     build:
@@ -67,12 +180,28 @@ services:
       - SECRET=${SECRET}
       - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
     depends_on:
-      - backend
-      - postgres
+      backend:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
     networks:
+      - data-network
       - app-network
+    restart: on-failure
+    mem_limit: 768m
+    cpus: 1.0
+    logging: *default-logging
+    <<: *default-security
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:3000/ || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 45s
 
 networks:
+  data-network:
+    driver: bridge
   app-network:
     driver: bridge
 

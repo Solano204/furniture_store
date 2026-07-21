@@ -10,7 +10,7 @@ import {
 import { uploadImage, deleteImage } from "@/app/utils/supebase";
 import { getClient } from "../Client";
 import db from "@/app/utils/db";
-import { auth, currentUser, getAdminUser } from "../Actions/Security";
+import { getAdminUser } from "../Actions/Security";
 
 import {
   CREATE_PRODUCT_MUTATION,
@@ -83,7 +83,7 @@ export const createProductAction = async (
   prevState: any,
   formData: FormData
 ): Promise<{ message: string }> => {
-  const user = await currentUser();
+  const user = await getAdminUser();
 
   try {
     const rawData = Object.fromEntries(formData);
@@ -209,7 +209,7 @@ export const updateProductImageAction = async (
   prevState: any,
   formData: FormData
 ) => {
-  const user = await currentUser();
+  await getAdminUser();
   try {
     const image = formData.get("image") as File;
     const productId = formData.get("id") as string;

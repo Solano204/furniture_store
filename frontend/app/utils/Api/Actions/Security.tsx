@@ -4,21 +4,18 @@ import {
   AUTHENTICATE_MUTATION,
   CHANGE_PASSWORD_MUTATION,
   LOGOUT_MUTATION,
+  REFRESH_TOKEN_MUTATION,
   REGISTER_MUTATION,
 } from "../Queries/Security";
 import {
   SessionPayload,
   createSession,
   deleteSession,
-  updateSession,
-  verifySession,
   getDataFromCookie,
 } from "./cookies-session";
 import { redirect } from "next/navigation";
 import { userSchema, validateSession } from "../../schemas";
 import { revalidatePath } from "next/cache";
-import { setAccessToken } from "../Client";
-import { tr } from "@faker-js/faker";
 
 export const login = async (
   prevState: any,
@@ -39,9 +36,6 @@ export const login = async (
       variables: { username, password },
     });
     const { accessToken, refreshToken, clerkId } = data.authenticate;
-
-    // Set the token globally
-    setAccessToken(accessToken);
 
     // Prepare the session payload
     const dataUser: SessionPayload = {
@@ -89,6 +83,36 @@ export const logout = async (
   redirect("/");
 };
 
+// Rotates the access token using the stored refresh token and persists it,
+// keeping the rest of the session payload intact. Writes a cookie, so this
+// can only be called from a Server Action or Route Handler, never from a
+// Server Component - call it after a GraphQL call comes back with an
+// UNAUTHORIZED/INVALID_CREDENTIALS error, then retry the original operation once.
+export const refreshAccessToken = async (): Promise<boolean> => {
+  const session = await getDataFromCookie();
+  if (!session?.refreshToken) {
+    return false;
+  }
+
+  try {
+    const { data } = await getClient().mutate({
+      mutation: REFRESH_TOKEN_MUTATION,
+      variables: { refreshToken: session.refreshToken },
+    });
+
+    const newAccessToken: string | null = data?.refreshToken ?? null;
+    if (!newAccessToken) {
+      return false;
+    }
+
+    await createSession({ ...session, jwt: newAccessToken });
+    return true;
+  } catch (error) {
+    console.error("Error refreshing access token:", error);
+    return false;
+  }
+};
+
 export const register = async (
   prevState: any,
   formData: FormData
@@ -108,9 +132,6 @@ export const register = async (
       variables: { username, password },
     });
     const { accessToken, refreshToken, clerkId } = data.register;
-
-    // Set the token globally
-    setAccessToken(accessToken);
 
     // Prepare the session payload
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
@@ -186,26 +207,3 @@ export const currentUser = async (): Promise<User2> => {
   }
 };
 
-// src/app/utils/Api/Actions/Security.ts
-
-export async function authId(): Promise<{ userId: string | undefined }> {
-  try {
-    const cookie = await getDataFromCookie();
-    return { userId: cookie?.userId };
-  } catch (error) {
-    console.error("Error during authentication:", error);
-    return { userId: undefined }; // Return undefined if authentication fails
-  }
-}
-
-export async function authJwt(): Promise<{ jwt: string | undefined }> {
-  try {
-    if (!(await getDataFromCookie())) return { jwt: undefined };
-
-    const cookie = await getDataFromCookie();
-    return { jwt: cookie?.jwt };
-  } catch (error) {
-    console.error("Error during authentication:", error);
-    return { jwt: undefined }; // Return undefined if authentication fails
-  }
-}

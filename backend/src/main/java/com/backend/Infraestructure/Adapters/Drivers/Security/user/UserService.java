@@ -1,6 +1,5 @@
 package com.backend.Infraestructure.Adapters.Drivers.Security.user;
 
-import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -13,7 +12,7 @@ import com.backend.Infraestructure.Adapters.Drivens.Repositories.UserRepository;
 import com.backend.Infraestructure.Adapters.Drivers.Security.GraphQLCustomException;
 
 @Service
-@Data
+@RequiredArgsConstructor
 public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final UserRepository repository;

@@ -1,8 +1,7 @@
 package com.backend.Infraestructure.Adapters.Drivers.Security.Services;
 
-import lombok.Data;
+import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
-import org.springframework.security.authentication.ReactiveAuthenticationManager;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -19,14 +18,13 @@ import com.backend.Infraestructure.Adapters.Drivers.Security.token.TokenType;
 import java.util.Set;
 
 @Service
-@Data
+@RequiredArgsConstructor
 public class AuthenticationService {
 
   private final UserRepository repository;
   private final TokenRepository tokenRepository;
   private final PasswordEncoder passwordEncoder;
   private final JwtService jwtService;
-  private final ReactiveAuthenticationManager authenticationManager;
 
   // This method will be execute when I wanna register a new User and I return a
   // AuthenticationResponse(with Refresh Token and access Token)
@@ -123,40 +121,41 @@ public class AuthenticationService {
 
   // Here I put all my token like Invalid and Revoked or Expired
   private Mono<Void> revokeAllUserTokens(User user) {
-    return tokenRepository.deleteAllByUser(user.getUsername())
-        .doOnSuccess(unused -> System.out.println("All tokens revoked for user: " + user.getUsername()))
-        .doOnError(error -> System.err.println("Failed to revoke tokens for user: " + user.getUsername() + ", error: " + error.getMessage()));
-  } 
+    return tokenRepository.deleteAllByUser(user.getUsername());
+  }
 
-  // Validates a refresh token and, if valid, rotates it for a new access token.
-  // Takes the raw token string directly - the GraphQL mutation
-  // (refreshToken(refreshToken: String!): Boolean!) hands one straight through,
-  // there's no HTTP request to pull an Authorization header out of.
-  public Mono<Boolean> refreshToken(String refreshToken) {
+  // Validates a refresh token and, if valid, rotates it for a new access token,
+  // which is handed back to the caller - a refresh flow is useless to a client
+  // that can't retrieve the token it produces. Takes the raw token string
+  // directly - the GraphQL mutation (refreshToken(refreshToken: String!): String)
+  // hands one straight through, there's no HTTP request to pull an
+  // Authorization header out of. Returns null (not an error) on any failure,
+  // so callers can't distinguish "expired" from "unknown user" and probe accounts.
+  public Mono<String> refreshToken(String refreshToken) {
     if (refreshToken == null || refreshToken.isBlank()) {
-        return Mono.just(false);
+        return Mono.empty();
     }
 
     return jwtService.extractUsername(refreshToken)
         .flatMap(username -> {
             if (username == null) {
-                return Mono.just(false);
+                return Mono.<String>empty();
             }
 
             return repository.findByUsername(username)
                 .flatMap(user -> jwtService.isTokenValid(refreshToken, user)
                     .flatMap(isValid -> {
                         if (!isValid) {
-                            return Mono.just(false);
+                            return Mono.<String>empty();
                         }
                         return jwtService.generateToken(user)
                             .flatMap(accessToken -> revokeAllUserTokens(user)
                                 .then(saveUserToken(user, accessToken))
-                                .thenReturn(true));
+                                .thenReturn(accessToken));
                     }))
-                .switchIfEmpty(Mono.just(false));
+                .switchIfEmpty(Mono.empty());
         })
-        .switchIfEmpty(Mono.just(false))
-        .onErrorReturn(false);
+        .switchIfEmpty(Mono.empty())
+        .onErrorResume(e -> Mono.empty());
 }
 }

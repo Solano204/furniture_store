@@ -1,0 +1,433 @@
+{
+  "info": {
+    "name": "furniture-store",
+    "description": "GraphQL-only backend (localhost:8080/graphql) - no separate REST endpoints exist. Run 'Register' then 'Authenticate' first (auto-captures accessToken/clerkId into collection variables, used by every other request's Authorization header). Admin mutations (Products > Create/Update/Delete, Orders > Get all orders) need ROLE_ADMIN, which nothing in the API can grant to itself by design (see GraphQL API notes - register always creates a plain USER) - promote your registered user manually first: `db.User.updateOne({username: 'YOUR_USERNAME'}, {$set: {role: 'ADMIN'}})` in mongosh against the `furniture_store` database.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "graphql_url", "value": "http://localhost:8080/graphql" },
+    { "key": "username", "value": "jdoe" },
+    { "key": "password", "value": "Password123!" },
+    { "key": "accessToken", "value": "" },
+    { "key": "refreshToken", "value": "" },
+    { "key": "clerkId", "value": "", "description": "Auto-set by 'Authenticate' - this backend's user identifier, despite the name (Clerk itself only backs the frontend's React components, not auth - see GraphQL API notes)" },
+    { "key": "productId", "value": "", "description": "Auto-set by 'Create product' (admin only)" },
+    { "key": "reviewId", "value": "" },
+    { "key": "favoriteId", "value": "" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation Register($input: RegisterRequest!) {\n  register(input: $input) {\n    accessToken\n    refreshToken\n    clerkId\n  }\n}",
+                "variables": "{\n  \"input\": {\n    \"username\": \"{{username}}\",\n    \"password\": \"{{password}}\"\n  }\n}"
+              }
+            },
+            "url": { "raw": "{{graphql_url}}", "host": ["{{graphql_url}}"] },
+            "description": "Always creates a plain USER account - role is never client-settable (see GraphQlSecurityInterceptor / GraphQL API notes)."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const json = pm.response.json();",
+              "if (json.data && json.data.register) {",
+              "    pm.collectionVariables.set('accessToken', json.data.register.accessToken);",
+              "    pm.collectionVariables.set('refreshToken', json.data.register.refreshToken);",
+              "    pm.collectionVariables.set('clerkId', json.data.register.clerkId);",
+              "}",
+              "pm.test('No GraphQL errors', function () {",
+              "    pm.expect(pm.response.json().errors).to.be.undefined;",
+              "});"
+            ] }
+          }]
+        },
+        {
+          "name": "Authenticate",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation Authenticate($input: AuthenticationRequest!) {\n  authenticate(input: $input) {\n    accessToken\n    refreshToken\n    clerkId\n  }\n}",
+                "variables": "{\n  \"input\": {\n    \"username\": \"{{username}}\",\n    \"password\": \"{{password}}\"\n  }\n}"
+              }
+            },
+            "url": { "raw": "{{graphql_url}}", "host": ["{{graphql_url}}"] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const json = pm.response.json();",
+              "if (json.data && json.data.authenticate) {",
+              "    pm.collectionVariables.set('accessToken', json.data.authenticate.accessToken);",
+              "    pm.collectionVariables.set('refreshToken', json.data.authenticate.refreshToken);",
+              "    pm.collectionVariables.set('clerkId', json.data.authenticate.clerkId);",
+              "}",
+              "pm.test('No GraphQL errors', function () {",
+              "    pm.expect(pm.response.json().errors).to.be.undefined;",
+              "});"
+            ] }
+          }]
+        },
+        {
+          "name": "Refresh token",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation RefreshToken($refreshToken: String!) {\n  refreshToken(refreshToken: $refreshToken)\n}",
+                "variables": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+              }
+            },
+            "url": { "raw": "{{graphql_url}}", "host": ["{{graphql_url}}"] },
+            "description": "Returns the new access token, or null if the refresh token is invalid/expired."
+          }
+        },
+        {
+          "name": "Change password",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation ChangePassword($input: ChangePasswordRequest!) {\n  changePassword(input: $input)\n}",
+                "variables": "{\n  \"input\": {\n    \"username\": \"{{username}}\",\n    \"currentPassword\": \"{{password}}\",\n    \"newPassword\": \"NewPassword123!\",\n    \"confirmationPassword\": \"NewPassword123!\"\n  }\n}"
+              }
+            },
+            "url": { "raw": "{{graphql_url}}", "host": ["{{graphql_url}}"] }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation {\n  logout\n}",
+                "variables": ""
+              }
+            },
+            "url": { "raw": "{{graphql_url}}", "host": ["{{graphql_url}}"] },
+            "description": "Must be the ONLY field in the document to get the dedicated logout handling in GraphQlSecurityInterceptor - combining it with other fields falls through to the normal auth path instead."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Products",
+      "item": [
+        {
+          "name": "Get featured products (public)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query {\n  getFeaturedProducts {\n    id\n    name\n    company\n    price\n    image\n    featured\n  }\n}",
+                "variables": ""
+              }
+            },
+            "url": { "raw": "{{graphql_url}}", "host": ["{{graphql_url}}"] }
+          }
+        },
+        {
+          "name": "Search products (public)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query SearchProducts($company: String!, $name: String!) {\n  searchProducts(company: $company, name: $name) {\n    id\n    name\n    company\n    price\n  }\n}",
+                "variables": "{\n  \"company\": \"\",\n  \"name\": \"chair\"\n}"
+              }
+            },
+            "url": { "raw": "{{graphql_url}}", "host": ["{{graphql_url}}"] },
+            "description": "No pagination on this or any other list query - see GraphQL API notes."
+          }
+        },
+        {
+          "name": "Get product by id (public)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query GetProductById($productId: String!) {\n  getProductById(productId: $productId) {\n    id\n    name\n    description\n    company\n    price\n    image\n  }\n}",
+                "variables": "{\n  \"productId\": \"{{productId}}\"\n}"
+              }
+            },
+            "url": { "raw": "{{graphql_url}}", "host": ["{{graphql_url}}"] }
+          }
+        },
+        {
+          "name": "Create product (admin)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation CreateProduct($input: CreateProductInput!) {\n  createProduct(input: $input) {\n    id\n    name\n    price\n  }\n}",
+                "variables": "{\n  \"input\": {\n    \"name\": \"Oak Dining Chair\",\n    \"description\": \"Solid oak, seats one\",\n    \"image\": \"https://images.pexels.com/photo-placeholder.jpg\",\n    \"clerkId\": \"{{clerkId}}\",\n    \"company\": \"Acme Furniture\",\n    \"price\": 12999\n  }\n}"
+              }
+            },
+            "url": { "raw": "{{graphql_url}}", "host": ["{{graphql_url}}"] },
+            "description": "price is Int (cents) here - unlike Order's orderTotal/tax/shipping, which are the custom BigDecimal scalar (see GraphQL API notes)."
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const json = pm.response.json();",
+              "if (json.data && json.data.createProduct) {",
+              "    pm.collectionVariables.set('productId', json.data.createProduct.id);",
+              "}"
+            ] }
+          }]
+        },
+        {
+          "name": "Update product (admin)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation UpdateProduct($productId: String!, $input: UpdateProductInput!) {\n  updateProduct(productId: $productId, input: $input) {\n    id\n    name\n    price\n  }\n}",
+                "variables": "{\n  \"productId\": \"{{productId}}\",\n  \"input\": {\n    \"price\": 11999\n  }\n}"
+              }
+            },
+            "url": { "raw": "{{graphql_url}}", "host": ["{{graphql_url}}"] }
+          }
+        },
+        {
+          "name": "Delete product (admin)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation DeleteProduct($productId: String!) {\n  deleteProduct(productId: $productId) {\n    id\n  }\n}",
+                "variables": "{\n  \"productId\": \"{{productId}}\"\n}"
+              }
+            },
+            "url": { "raw": "{{graphql_url}}", "host": ["{{graphql_url}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reviews",
+      "item": [
+        {
+          "name": "Create review",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation CreateReview($input: CreateReviewInput!) {\n  createReview(input: $input) {\n    id\n    rating\n    comment\n  }\n}",
+                "variables": "{\n  \"input\": {\n    \"productId\": \"{{productId}}\",\n    \"rating\": 5,\n    \"comment\": \"Sturdy and comfortable.\",\n    \"clerkId\": \"{{clerkId}}\"\n  }\n}"
+              }
+            },
+            "url": { "raw": "{{graphql_url}}", "host": ["{{graphql_url}}"] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const json = pm.response.json();",
+              "if (json.data && json.data.createReview) {",
+              "    pm.collectionVariables.set('reviewId', json.data.createReview.id);",
+              "}"
+            ] }
+          }]
+        },
+        {
+          "name": "Get product reviews (public)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query GetProductReviews($productId: String!) {\n  getProductReviews(productId: $productId) {\n    id\n    rating\n    comment\n    authorName\n  }\n  getReviewAggregate(productId: $productId) {\n    avgRating\n    ratingCount\n  }\n}",
+                "variables": "{\n  \"productId\": \"{{productId}}\"\n}"
+              }
+            },
+            "url": { "raw": "{{graphql_url}}", "host": ["{{graphql_url}}"] }
+          }
+        },
+        {
+          "name": "Get my reviews",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query GetUserReviews($clerkId: String!) {\n  getUserReviews(clerkId: $clerkId) {\n    id\n    productId\n    rating\n    comment\n  }\n}",
+                "variables": "{\n  \"clerkId\": \"{{clerkId}}\"\n}"
+              }
+            },
+            "url": { "raw": "{{graphql_url}}", "host": ["{{graphql_url}}"] },
+            "description": "OwnershipGuard rejects this if clerkId doesn't match the authenticated caller - one user's token can't read another's reviews."
+          }
+        },
+        {
+          "name": "Delete review",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation DeleteReview($id: String!, $clerkId: String!) {\n  deleteReview(id: $id, clerkId: $clerkId)\n}",
+                "variables": "{\n  \"id\": \"{{reviewId}}\",\n  \"clerkId\": \"{{clerkId}}\"\n}"
+              }
+            },
+            "url": { "raw": "{{graphql_url}}", "host": ["{{graphql_url}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Favorites",
+      "item": [
+        {
+          "name": "Add favorite",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation AddFavorite($input: AddFavoriteInput!) {\n  addFavorite(input: $input) {\n    id\n    productId\n  }\n}",
+                "variables": "{\n  \"input\": {\n    \"productId\": \"{{productId}}\",\n    \"clerkId\": \"{{clerkId}}\"\n  }\n}"
+              }
+            },
+            "url": { "raw": "{{graphql_url}}", "host": ["{{graphql_url}}"] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const json = pm.response.json();",
+              "if (json.data && json.data.addFavorite) {",
+              "    pm.collectionVariables.set('favoriteId', json.data.addFavorite.id);",
+              "}"
+            ] }
+          }]
+        },
+        {
+          "name": "Get my favorites",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query GetFavorites($clerkId: String!) {\n  getFavorites(clerkId: $clerkId) {\n    id\n    productId\n    product {\n      name\n      price\n    }\n  }\n}",
+                "variables": "{\n  \"clerkId\": \"{{clerkId}}\"\n}"
+              }
+            },
+            "url": { "raw": "{{graphql_url}}", "host": ["{{graphql_url}}"] }
+          }
+        },
+        {
+          "name": "Delete favorite",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation DeleteFavorite($favoriteId: String!) {\n  deleteFavorite(favoriteId: $favoriteId)\n}",
+                "variables": "{\n  \"favoriteId\": \"{{favoriteId}}\"\n}"
+              }
+            },
+            "url": { "raw": "{{graphql_url}}", "host": ["{{graphql_url}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Orders",
+      "item": [
+        {
+          "name": "Create order",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation CreateOrder($input: CreateOrderInput!) {\n  createOrder(input: $input) {\n    id\n    orderTotal\n    tax\n    shipping\n  }\n}",
+                "variables": "{\n  \"input\": {\n    \"clerkId\": \"{{clerkId}}\",\n    \"products\": 1,\n    \"orderTotal\": \"129.99\",\n    \"tax\": \"10.40\",\n    \"shipping\": \"5.00\",\n    \"username\": \"{{username}}\"\n  }\n}"
+              }
+            },
+            "url": { "raw": "{{graphql_url}}", "host": ["{{graphql_url}}"] },
+            "description": "orderTotal/tax/shipping are the custom BigDecimal scalar (Doc 1 fix) - send them as quoted decimal strings, not raw floats, to get exact precision end to end."
+          }
+        },
+        {
+          "name": "Get my orders",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query GetUserOrders($clerkId: String!) {\n  getUserOrders(clerkId: $clerkId) {\n    id\n    orderTotal\n    tax\n    shipping\n    createdAt\n  }\n}",
+                "variables": "{\n  \"clerkId\": \"{{clerkId}}\"\n}"
+              }
+            },
+            "url": { "raw": "{{graphql_url}}", "host": ["{{graphql_url}}"] }
+          }
+        },
+        {
+          "name": "Get all orders (admin)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query {\n  getOrders {\n    id\n    clerkId\n    orderTotal\n    createdAt\n  }\n}",
+                "variables": ""
+              }
+            },
+            "url": { "raw": "{{graphql_url}}", "host": ["{{graphql_url}}"] },
+            "description": "Returns every user's orders - ROLE_ADMIN required, enforced by GraphQlSecurityInterceptor (graphql.admin-operations)."
+          }
+        }
+      ]
+    }
+  ]
+}

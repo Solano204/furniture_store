@@ -1,7 +1,6 @@
 "use server";
 
 import {getActionsCart} from './cartActionPrisma'
-//import {getActionsCart } from './cartActionsLocal'
 const cartService = await getActionsCart();
 export const fetchCartItems = cartService.fetchCartItems;
 export const addToCartAction = cartService.addToCartAction;

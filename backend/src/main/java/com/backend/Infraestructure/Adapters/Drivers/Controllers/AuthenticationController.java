@@ -1,6 +1,6 @@
 package com.backend.Infraestructure.Adapters.Drivers.Controllers;
 
-import lombok.Data;
+import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
 
 import org.springframework.graphql.data.method.annotation.Argument;
@@ -11,7 +11,7 @@ import com.backend.Infraestructure.Adapters.Drivens.Graphql.DocumentMappings;
 import com.backend.Infraestructure.Adapters.Drivers.Security.Services.AuthenticationService;
 
 @Controller
-@Data
+@RequiredArgsConstructor
 public class AuthenticationController {
 
     private final AuthenticationService service;
@@ -29,7 +29,7 @@ public class AuthenticationController {
     }
 
     @MutationMapping(name = "refreshToken")
-    public Mono<Boolean> refreshToken(@Argument(name = "refreshToken") String refreshToken) {
+    public Mono<String> refreshToken(@Argument(name = "refreshToken") String refreshToken) {
         return service.refreshToken(refreshToken);
     }
 

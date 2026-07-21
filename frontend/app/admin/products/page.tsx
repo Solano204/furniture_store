@@ -17,7 +17,11 @@ import {
 
 import FormContainer from "@/components/form/FormContainer";
 import { IconButton } from "@/components/form/Buttons";
-import { deleteProductAction } from "@/app/utils/actions";
+// Was importing the Prisma/Postgres version - broken in practice, since the
+// productId values on this page come from fetchAdminProducts (GraphQL/Mongo,
+// line 4 above) and essentially never match a row in Postgres's disconnected
+// Product table, so the delete button silently failed. See Doc 4 SQL notes.
+import { deleteProductAction } from "@/app/utils/Api/Actions/Products";
 
 
 async function ItemsPage() {

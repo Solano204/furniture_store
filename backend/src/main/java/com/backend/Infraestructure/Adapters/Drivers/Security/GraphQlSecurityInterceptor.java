@@ -92,8 +92,17 @@ public class GraphQlSecurityInterceptor implements WebGraphQlInterceptor {
         // Extract token
         String incomingToken = bearer.substring(7);
 
-        // Validate and check if token exists in the database
+        // Validate and check if token exists in the database. An expired,
+        // malformed, or tampered token makes the JJWT parser throw here (this
+        // is the most common auth failure in practice - access tokens expire
+        // every 24h by default) - map it to the same clean auth error other
+        // failures in this method use, instead of leaking a raw parser
+        // exception message through CustomGraphQLExceptionResolver's fallback.
         return jwtService.extractUsername(incomingToken)
+                .onErrorMap(ex -> !(ex instanceof GraphQLCustomException), ex -> new GraphQLCustomException(
+                        "Invalid credentials",
+                        "INVALID_CREDENTIALS",
+                        "Your session has expired or the token is invalid. Please log in again."))
                 .flatMap(userName -> userDetailsService.findByUsername(userName)
                         .flatMap(userDetails -> tokenRepository.existsByToken(incomingToken)
                                 .flatMap(exists -> {

@@ -18,6 +18,10 @@ public class Token {
   @Id
   public String id;
   public String token;
+  // Without @Builder.Default, Lombok's generated builder silently ignores this
+  // initializer - Token.builder().build() without an explicit .tokenType(...)
+  // call would produce null instead of BEARER.
+  @Builder.Default
   public TokenType tokenType = TokenType.BEARER;
   public String user;
 }

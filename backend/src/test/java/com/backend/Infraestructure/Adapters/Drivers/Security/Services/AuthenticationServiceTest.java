@@ -16,7 +16,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.authentication.ReactiveAuthenticationManager;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.backend.Infraestructure.Adapters.Drivens.Entities.Token;
@@ -46,15 +45,12 @@ class AuthenticationServiceTest {
     @Mock
     private JwtService jwtService;
 
-    @Mock
-    private ReactiveAuthenticationManager authenticationManager;
-
     private AuthenticationService authenticationService;
 
     @BeforeEach
     void setUp() {
         authenticationService = new AuthenticationService(
-                userRepository, tokenRepository, passwordEncoder, jwtService, authenticationManager);
+                userRepository, tokenRepository, passwordEncoder, jwtService);
         lenient().when(tokenRepository.save(any(Token.class))).thenReturn(Mono.just(Token.builder().build()));
         lenient().when(tokenRepository.deleteAllByUser(any())).thenReturn(Mono.empty());
     }
@@ -145,26 +141,24 @@ class AuthenticationServiceTest {
     }
 
     @Test
-    void refreshToken_blankToken_returnsFalseWithoutTouchingRepositories() {
+    void refreshToken_blankToken_returnsEmptyWithoutTouchingRepositories() {
         StepVerifier.create(authenticationService.refreshToken(""))
-                .expectNext(false)
                 .verifyComplete();
     }
 
     @Test
-    void refreshToken_invalidToken_returnsFalse() {
+    void refreshToken_invalidToken_returnsEmpty() {
         User existing = buildUser();
         when(jwtService.extractUsername("bad-token")).thenReturn(Mono.just("carlos"));
         when(userRepository.findByUsername("carlos")).thenReturn(Mono.just(existing));
         when(jwtService.isTokenValid("bad-token", existing)).thenReturn(Mono.just(false));
 
         StepVerifier.create(authenticationService.refreshToken("bad-token"))
-                .expectNext(false)
                 .verifyComplete();
     }
 
     @Test
-    void refreshToken_validToken_rotatesAccessTokenAndReturnsTrue() {
+    void refreshToken_validToken_rotatesAndReturnsNewAccessToken() {
         User existing = buildUser();
         when(jwtService.extractUsername("good-token")).thenReturn(Mono.just("carlos"));
         when(userRepository.findByUsername("carlos")).thenReturn(Mono.just(existing));
@@ -172,17 +166,16 @@ class AuthenticationServiceTest {
         when(jwtService.generateToken(existing)).thenReturn(Mono.just("new-access-token"));
 
         StepVerifier.create(authenticationService.refreshToken("good-token"))
-                .expectNext(true)
+                .expectNext("new-access-token")
                 .verifyComplete();
     }
 
     @Test
-    void refreshToken_unknownUser_returnsFalse() {
+    void refreshToken_unknownUser_returnsEmpty() {
         when(jwtService.extractUsername("token-for-ghost")).thenReturn(Mono.just("ghost"));
         when(userRepository.findByUsername("ghost")).thenReturn(Mono.empty());
 
         StepVerifier.create(authenticationService.refreshToken("token-for-ghost"))
-                .expectNext(false)
                 .verifyComplete();
     }
 }

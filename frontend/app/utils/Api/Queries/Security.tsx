@@ -43,3 +43,9 @@ export const LOGOUT_MUTATION = gql`
     logout
   }
 `;
+
+export const REFRESH_TOKEN_MUTATION = gql`
+  mutation RefreshToken($refreshToken: String!) {
+    refreshToken(refreshToken: $refreshToken)
+  }
+`;

@@ -6,7 +6,6 @@ import { SubmitButton } from "../form/Buttons";
 import { Cart } from "@prisma/client";
 
 import { addToCartAction } from "@/app/utils/cartActionBase";
-// import { createOrder } from "@/app/utils/orderActionBase";
 import { createOrder } from "@/app/utils/Api/Actions/Orders";
 // CONTAINER WHERE I SHOW ALL INFORMATION GENERAL ABOUT THE CURRENT' CAR
 function CartTotals({ cart }: { cart: Cart }) {

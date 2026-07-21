@@ -1,6 +1,6 @@
 package com.backend.Infraestructure.Adapters.Drivers.Controllers;
 
-import lombok.Data;
+import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
 
 import org.springframework.graphql.data.method.annotation.Argument;
@@ -10,11 +10,12 @@ import org.springframework.stereotype.Controller;
 
 import com.backend.Infraestructure.Adapters.Drivens.Entities.User;
 import com.backend.Infraestructure.Adapters.Drivens.Graphql.DocumentMappings.ChangePasswordRequest;
+import com.backend.Infraestructure.Adapters.Drivers.Security.GraphQLCustomException;
 import com.backend.Infraestructure.Adapters.Drivers.Security.OwnershipGuard;
 import com.backend.Infraestructure.Adapters.Drivers.Security.user.UserService;
 
 @Controller
-@Data
+@RequiredArgsConstructor
 public class UserController {
 
     private final UserService service;
@@ -30,8 +31,20 @@ public class UserController {
                 .flatMap(username -> service.changePassword(request, username));
     }
 
+    // GraphQlSecurityInterceptor only proves the caller is authenticated as
+    // *someone* - without this, any logged-in user could pass another user's
+    // username and read their profile. Mirrors OwnershipGuard#verifyOwnClerkId.
     @QueryMapping(name = "getInfoUser")
     public Mono<User> user(@Argument(name = "username") String username) {
-        return service.findByUsername(username);
-}
+        return ownershipGuard.currentUsername()
+                .flatMap(callerUsername -> {
+                    if (!callerUsername.equals(username)) {
+                        return Mono.<User>error(new GraphQLCustomException(
+                                "Forbidden",
+                                "FORBIDDEN",
+                                "You are not allowed to access another user's data."));
+                    }
+                    return service.findByUsername(username);
+                });
+    }
 }
