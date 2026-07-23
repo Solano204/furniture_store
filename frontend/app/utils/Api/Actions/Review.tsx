@@ -5,7 +5,7 @@ import {
   validateWithZodSchema,
 } from "../../schemas";
 import { getClient } from "../Client";
-import { currentUser } from "../Actions/Security";
+import { currentUser } from "./Security";
 import {
   DELETE_REVIEW_MUTATION,
   GET_REVIEW_AGGREGATE_QUERY,

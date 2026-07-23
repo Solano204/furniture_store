@@ -107,7 +107,7 @@ class CartActionBase implements CartActionsInterface {
     amount: number;
   }): Promise<void> => {
     /// get the product that belong to one cartItem
-    let cartItem = await db.cartItem.findFirst({
+    const cartItem = await db.cartItem.findFirst({
       where: { productId, cartId },
     });
     if (cartItem) {

@@ -1,6 +1,6 @@
 "use server";
 import { getClient } from "../Client";
-import { currentUser } from "../Actions/Security";
+import { currentUser } from "./Security";
 import {
   ADD_FAVORITE_MUTATION,
   DELETE_FAVORITE_MUTATION,
