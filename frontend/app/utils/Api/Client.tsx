@@ -22,7 +22,14 @@ const GRAPHQL_REQUEST_TIMEOUT_MS = 10_000;
 
 const createApolloClient = () => {
   const httpLink = new HttpLink({
-    uri: process.env.NEXT_PUBLIC_GRAPHQL_URL || "http://localhost:8080/graphql",
+    // Every caller of getClient() is a "use server" Server Action - this never
+    // runs in the browser. NEXT_PUBLIC_GRAPHQL_URL is "localhost:8080" for
+    // local dev (correct there - backend runs on the same host), but inside
+    // Docker "localhost" from the frontend container's own network namespace
+    // never reaches the backend container. GRAPHQL_URL lets docker-compose
+    // override with the internal service name (http://backend:8080/graphql)
+    // without touching the local-dev default.
+    uri: process.env.GRAPHQL_URL || process.env.NEXT_PUBLIC_GRAPHQL_URL || "http://localhost:8080/graphql",
     // A custom fetch, not a static fetchOptions.signal - AbortSignal.timeout()
     // starts counting the moment it's created, so a signal built once here
     // (HttpLink construction, i.e. once per Apollo Client instance) would

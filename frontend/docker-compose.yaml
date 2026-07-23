@@ -49,7 +49,7 @@ services:
       - MONGO_INITDB_ROOT_USERNAME=root
       - MONGO_INITDB_ROOT_PASSWORD_FILE=/run/secrets/mongo_root_password
     ports:
-      - "27017:27017"
+      - "27018:27017"
     volumes:
       - mongo-data:/data/db
     networks:
@@ -76,7 +76,7 @@ services:
       - POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password
       - POSTGRES_DB=furniture_store
     ports:
-      - "5432:5432"
+      - "5434:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     networks:
@@ -179,6 +179,11 @@ services:
       - ADMIN_USER_ID=${ADMIN_USER_ID}
       - SECRET=${SECRET}
       - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
+      # Server-side-only override - see Client.tsx. NEXT_PUBLIC_GRAPHQL_URL stays
+      # "localhost:8080" (baked in at build time) since nothing in the browser
+      # actually reads it, but keeping it around costs nothing and matches
+      # .env.example for anyone running this outside Docker.
+      - GRAPHQL_URL=http://backend:8080/graphql
     depends_on:
       backend:
         condition: service_healthy
