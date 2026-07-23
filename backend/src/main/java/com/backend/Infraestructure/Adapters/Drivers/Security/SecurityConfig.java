@@ -32,6 +32,10 @@ public class SecurityConfig {
             // instead, since HTTP-layer path rules can't express "this query is
             // public, that mutation on the same endpoint isn't".
             .authorizeExchange(auth -> auth.pathMatchers("/graphql/**").permitAll()
+                // Docker's healthcheck (and any orchestrator readiness probe) hits this
+                // unauthenticated - without this it always gets 401, so the container
+                // never reports healthy no matter how well the app is actually running.
+                .pathMatchers("/actuator/health", "/actuator/health/**").permitAll()
                 .anyExchange().authenticated());
 
         http.httpBasic(Customizer.withDefaults());
