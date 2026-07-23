@@ -1,33 +1,33 @@
-// THIS  MIDDLE WILL INTERCEPT ALL REQUEST AND WILL CHECK IF ARE PUBLICS THE SAME WAY (SPRING FILTER)
-// import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+// Intercepts every request and checks auth the same way a Spring filter would.
 import { NextRequest, NextResponse } from "next/server";
-import { decrypt, getDataFromCookie } from "./app/utils/Api/Actions/cookies-session";
+import { decrypt } from "./app/utils/Api/Actions/cookies-session";
 import { cookies } from "next/headers";
-import { auth } from "./app/utils/Api/Actions/Security";
-// 1. Specify protected and public routes
-const protectedRoutes = ["/dashboard"];
-const publicRoutes = [
-  "/",
-  "/products(.*)",
-  "/about",
-  "/auth/login",
-  "/auth/register",
-  "/auth/logout",
-];
-const adminRoutes = ["/admin,","/admin/sales", "/admin/products", "/admin/products/create"];
 
+// 1. Specify protected and admin routes. Anything not listed here falls
+// through unauthenticated by design - only these two lists are enforced.
+const protectedRoutes = ["/dashboard"];
+const adminRoutes = ["/admin"];
+
+// Plain .includes(path) only matches a route string exactly, so nested/dynamic
+// pages under a listed prefix (e.g. /admin/products/edit/abc123 under /admin)
+// were never actually covered - only the literal parent path was.
+export function matchesRoutePrefix(path: string, prefixes: string[]): boolean {
+  return prefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
+}
 
 export default async function middleware(req: NextRequest) {
   // 2. Check if the current route is protected or public
   const path = req.nextUrl.pathname;
-  const isProtectedRoutes = protectedRoutes.includes(path);
-  const isPublicRoutes = publicRoutes.includes(path);
-  const isAdminRoutes = adminRoutes.includes(path);
+  const isProtectedRoutes = matchesRoutePrefix(path, protectedRoutes);
+  const isAdminRoutes = matchesRoutePrefix(path, adminRoutes);
 
   // 3. Decrypt the session from the cookie
   const cookie = (await cookies()).get("sessionita")?.value;
   const session = await decrypt(cookie);
-  if ((isProtectedRoutes || isAdminRoutes) && cookie == null) {
+  // Check session, not just cookie presence - an expired/tampered cookie is
+  // still non-null but decrypt() returns a null session, and that case must
+  // redirect too or it silently bypasses auth on protected/admin routes.
+  if ((isProtectedRoutes || isAdminRoutes) && session == null) {
     return NextResponse.redirect(new URL("/", req.nextUrl));
   }
   if ((isProtectedRoutes || isAdminRoutes) && session != null) {

@@ -19,7 +19,12 @@ target/
 *.iws
 *.iml
 *.ipr
-application.properties
+
+# application.properties/application-test.properties are tracked (env-var
+# placeholders only, no real secrets) - only local overrides are ignored.
+application-local.properties
+.env
+
 ### NetBeans ###
 /nbproject/private/
 /nbbuild/

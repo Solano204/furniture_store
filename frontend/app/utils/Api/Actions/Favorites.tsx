@@ -1,17 +1,14 @@
 "use server";
 import { getClient } from "../Client";
-import { fetchOrCreateCart } from "../../cartActionBase";
-import { auth, currentUser, getAdminUser } from "../Actions/Security";
+import { currentUser } from "./Security";
 import {
-  addFavoriteMutation,
-  deleteFavoriteMutation,
-  getFavoriteQuery,
-  getFavoritesQuery,
+  ADD_FAVORITE_MUTATION,
+  DELETE_FAVORITE_MUTATION,
+  GET_FAVORITE_QUERY,
+  GET_FAVORITES_QUERY,
 } from "../Queries/Favorites";
 import { revalidatePath } from "next/cache";
-import { gql } from "@apollo/client";
-import path from "path";
-import { Favorite, Product } from "@prisma/client";
+import { Product } from "@prisma/client";
 
 // Here I add or remove the product from the list of favorites based on whether it's already in the list.
 export const toggleFavoriteAction = async (prevState: {
@@ -26,31 +23,17 @@ export const toggleFavoriteAction = async (prevState: {
     // If the product is already a favorite, remove it
     if (favoriteId) {
       await getClient().mutate({
-        mutation: gql`
-          mutation {
-            deleteFavorite(favoriteId: "${favoriteId}")
-          }
-        `,
+        mutation: DELETE_FAVORITE_MUTATION,
+        variables: { favoriteId },
       });
     } else {
       // If it's not a favorite, add it
       await getClient().mutate({
-        mutation: gql`
-          mutation {
-            addFavorite(input: {
-              productId: "${productId}",
-              clerkId: "${user.id}"
-            }) {
-              id
-              productId
-              clerkId
-            }
-          }
-        `,
+        mutation: ADD_FAVORITE_MUTATION,
+        variables: { productId, clerkId: user.id },
       });
     }
 
-    console.log("pathname",pathname)
     // Revalidate the current page to ensure data is fresh
     revalidatePath(pathname);
     // Return the appropriate message based on whether the product was added or removed
@@ -67,20 +50,8 @@ export const fetchFavoriteId = async (productId: string ) => {
 
   try {
     const { data } = await getClient().query({
-      query: gql`
-        query {
-          getFavorite(productId: "${productId}", clerkId: "${user.id}") {
-            id
-            productId
-            clerkId
-            product {
-              id
-              name
-              description
-            }
-          }
-        }
-      `
+      query: GET_FAVORITE_QUERY,
+      variables: { productId, clerkId: user.id },
     });
     const favorite = data?.getFavorite?.id || null;
     return favorite ;
@@ -114,27 +85,9 @@ export const fetchUserFavorites = async (): Promise<Favorites[]> => {
 
   try {
     const { data } = await getClient().query({
-      query: gql`
-        query {
-          getFavorites(clerkId: "${user.id}") {
-            id
-            productId
-            clerkId
-            product {
-              id
-              name
-          company
-              description
-          image
-          featured
-          price
-          createdAt
-            }
-          }
-        }
-      `,
+      query: GET_FAVORITES_QUERY,
+      variables: { clerkId: user.id },
     });
-
 
     // Convert createdAt and updatedAt to Date objects
     const favorites = (data?.getFavorites);
@@ -145,4 +98,3 @@ export const fetchUserFavorites = async (): Promise<Favorites[]> => {
     return []; // Return an empty array in case of error
   }
 };
-

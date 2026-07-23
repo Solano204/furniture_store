@@ -1,12 +1,10 @@
-// src/pages/api/auth.ts
-import { authId } from "@/app/utils/Api/Actions/Security";
+import { getDataFromCookie } from "@/app/utils/Api/Actions/cookies-session";
 import { NextResponse } from "next/server";
-import { verifySession} from "@/app/utils/Api/Actions/cookies-session";
 
-export async function GET(req, res) {
+export async function GET() {
   try {
-    const user = await authId();
-    return NextResponse.json({ user });
+    const session = await getDataFromCookie();
+    return NextResponse.json({ user: { userId: session?.userId } });
   } catch (error) {
     return NextResponse.error();
   }

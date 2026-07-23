@@ -6,8 +6,6 @@ import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-import java.math.BigDecimal;
-import java.util.List;
 
 public class DocumentMappings {
 
@@ -116,8 +114,7 @@ public class DocumentMappings {
 
     public record RegisterRequests(
             String username,
-            String password,
-            String role) {
+            String password) {
     }
 
 }

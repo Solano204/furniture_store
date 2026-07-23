@@ -10,19 +10,17 @@ import {
 import { uploadImage, deleteImage } from "@/app/utils/supebase";
 import { getClient } from "../Client";
 import db from "@/app/utils/db";
-import { auth, currentUser, getAdminUser } from "../Actions/Security";
+import { getAdminUser } from "./Security";
 
 import {
-  createProductMutation,
-  deleteProductMutation,
-  updateProductMutation,
-  getFeaturedProductsQuery,
-  getProductByIdQuery,
-  getProductReviewsQuery,
-  searchProductsQuery,
-  updateProductMutationImage,
+  CREATE_PRODUCT_MUTATION,
+  DELETE_PRODUCT_MUTATION,
+  UPDATE_PRODUCT_MUTATION,
+  GET_FEATURED_PRODUCTS_QUERY,
+  GET_PRODUCT_BY_ID_QUERY,
+  SEARCH_PRODUCTS_QUERY,
+  UPDATE_PRODUCT_IMAGE_MUTATION,
 } from "../Queries/Products";
-import { gql } from "@apollo/client";
 import { redirect } from "next/navigation";
 
 export interface Review {
@@ -41,22 +39,27 @@ const renderError = (error: unknown): { message: string } => ({
   message: error instanceof Error ? error.message : "An error occurred",
 });
 
+// There's no exact-match-by-name query on the backend, only fuzzy
+// SEARCH_PRODUCTS_QUERY (partial match, used for the storefront search box) -
+// reused here since adding a new backend query is out of this frontend's
+// scope, but matched exactly (case-insensitive) client-side so a search for
+// "Chair" doesn't false-positive against "Office Chair".
+async function findProductByExactName(name: string, excludeProductId?: string) {
+  const { data } = await getClient().query({
+    query: SEARCH_PRODUCTS_QUERY,
+    variables: { company: name, name },
+    fetchPolicy: "network-only",
+  });
+  const matches = (data?.searchProducts ?? []) as { id: string; name: string }[];
+  return matches.find(
+    (p) => p.id !== excludeProductId && p.name.trim().toLowerCase() === name.trim().toLowerCase()
+  );
+}
+
 export const fetchFeaturedProducts = async () => {
   try {
     const { data } = await getClient().query({
-      query: gql`
-        query {
-          getFeaturedProducts {
-            id
-            name
-            description
-            image
-            featured
-            createdAt
-            price
-          }
-        }
-      `,
+      query: GET_FEATURED_PRODUCTS_QUERY,
     });
     return data.getFeaturedProducts;
   } catch (error) {
@@ -82,24 +85,8 @@ type Product = {
 export const fetchAdminProducts = async (): Promise<Product[]> => {
   await getAdminUser(); // Ensure this function is properly implemented
   try {
-    const getFeaturedProductsQuery = gql`
-      query {
-        getFeaturedProducts {
-          id
-          name
-          company
-          description
-          image
-          featured
-          price
-          createdAt
-
-        }
-      }
-    `;
-
     const { data } = await getClient().query({
-      query: getFeaturedProductsQuery,
+      query: GET_FEATURED_PRODUCTS_QUERY,
     });
 
     return data.getFeaturedProducts as Product[];
@@ -113,39 +100,32 @@ export const createProductAction = async (
   prevState: any,
   formData: FormData
 ): Promise<{ message: string }> => {
-  const user = await currentUser();
+  const user = await getAdminUser();
 
   try {
     const rawData = Object.fromEntries(formData);
     const file = formData.get("image") as File;
     const validatedFields = validateWithZodSchema(productSchema, rawData);
     const validatedFile = validateWithZodSchema(imageSchema, { image: file });
-    const fullPath = await uploadImage(validatedFile.image);
 
-    const CREATE_PRODUCT_MUTATION = gql`
-    mutation {
-      createProduct(input: {
-        name: "${validatedFields.name}",
-        description: "${validatedFields.description}",
-        image: "${fullPath}",
-        clerkId: "${user.id}",
-        company: "${validatedFields.company}",
-        price: ${validatedFields.price}
-      }) {
-        id
-        name
-        description
-        image
-        createdAt
-        company
-        price 
-      }
+    const duplicate = await findProductByExactName(validatedFields.name);
+    if (duplicate) {
+      return { message: `A product named "${validatedFields.name}" already exists` };
     }
-  `;
+
+    const fullPath = await uploadImage(validatedFile.image);
 
     try {
       const { data } = await getClient().mutate({
         mutation: CREATE_PRODUCT_MUTATION,
+        variables: {
+          name: validatedFields.name,
+          description: validatedFields.description,
+          image: fullPath,
+          clerkId: user.id,
+          company: validatedFields.company,
+          price: validatedFields.price,
+        },
       });
 
       revalidatePath("/admin/products");
@@ -159,24 +139,11 @@ export const createProductAction = async (
 };
 
 export const fetchSingleProduct = async (productId: string) => {
-  const query = gql`
-  query {
-    getProductById(productId: "${productId}") {
-      id
-      name
-      description
-      image
-      company
-      createdAt
-      price
-    }
-  }
-`;
-
   const { data } = await getClient().query({
-    query,
+    query: GET_PRODUCT_BY_ID_QUERY,
+    variables: { productId },
   });
-const product = data.getProductById;
+  const product = data.getProductById;
   if (!product) {
     throw new Error("Product not found");
   }
@@ -196,17 +163,8 @@ export const fetchAdminProductDetails = async (productId: string) => {
 
 export const fetchAllProducts = async (search: string): Promise<any[]> => {
   const { data } = await getClient().query({
-    query: gql`
-    query {
-      searchProducts(company: "${search}", name: "${search}") {
-        id
-        name
-        description
-        image
-        price
-      }
-    }
-  `,
+    query: SEARCH_PRODUCTS_QUERY,
+    variables: { company: search, name: search },
   });
   return data.searchProducts; // Return the actual product data
 };
@@ -216,22 +174,15 @@ export const deleteProductAction = async (prevState: { productId: string }) => {
   await getAdminUser();
   try {
     const { data } = await getClient().query({
-      query: getProductByIdQuery(productId),
+      query: GET_PRODUCT_BY_ID_QUERY,
+      variables: { productId },
     });
-    const product = data.product;
-
-    const DELETE_PRODUCT_MUTATION = gql`
-    mutation {
-      deleteProduct(productId: "${productId}") {
-        id
-        name
-      }
-    }
-  `;
+    const product = data.getProductById;
 
     try {
-      const { data } = await getClient().mutate({
+      await getClient().mutate({
         mutation: DELETE_PRODUCT_MUTATION,
+        variables: { productId },
       });
     } catch (error) {
       return renderError(error);
@@ -253,30 +204,24 @@ export const updateProductAction = async (
   try {
     const productId = formData.get("id") as string;
     const rawData = Object.fromEntries(formData);
-    
+
     const validatedFields = validateWithZodSchema(productSchema, rawData);
 
-    const UPDATE_PRODUCT_MUTATION = gql`
-    mutation {
-      updateProduct(productId: "${productId}", input: {
-        name: "${validatedFields.name}",
-        description: "${validatedFields.description}",
-        company: "${validatedFields.company}",
-        price: ${validatedFields.price}
-      }) {
-        id
-        name
-        description
-        image
-        company
-        price
-      }
+    const duplicate = await findProductByExactName(validatedFields.name, productId);
+    if (duplicate) {
+      return { message: `A product named "${validatedFields.name}" already exists` };
     }
-  `;
 
     try {
-      const { data } = await getClient().mutate({
+      await getClient().mutate({
         mutation: UPDATE_PRODUCT_MUTATION,
+        variables: {
+          productId,
+          name: validatedFields.name,
+          description: validatedFields.description,
+          company: validatedFields.company,
+          price: validatedFields.price,
+        },
       });
       revalidatePath(`/admin/products/${productId}/edit`);
       return { message: "Product updated successfully" };
@@ -292,7 +237,7 @@ export const updateProductImageAction = async (
   prevState: any,
   formData: FormData
 ) => {
-  const user = await currentUser();
+  await getAdminUser();
   try {
     const image = formData.get("image") as File;
     const productId = formData.get("id") as string;
@@ -300,59 +245,17 @@ export const updateProductImageAction = async (
 
     const validatedFile = validateWithZodSchema(imageSchema, { image });
 
-    // Define the GraphQL mutation outside the function call
-  
-
     const fullPath = await uploadImage(validatedFile.image);
     await deleteImage(oldImageUrl);
 
-    const UPDATE_PRODUCT_IMAGE_MUTATION = gql`
-    mutation {
-      updateProductImage(productId: "${productId}", image: "${fullPath}") {
-        id
-        name
-        description
-        image
-        company
-        price
-      }
-    }
-  `;
-
-    const { data } = await getClient().mutate({
+    await getClient().mutate({
       mutation: UPDATE_PRODUCT_IMAGE_MUTATION,
+      variables: { productId, image: fullPath },
     });
 
     revalidatePath(`/admin/products/${productId}/edit`);
     return { message: "Product image updated successfully" };
   } catch (error) {
     return renderError(error);
-  }
-};
-
-export const fetchProductRating = async (
-  productId: string
-): Promise<{ rating: number; count: number }> => {
-  const GET_PRODUCT_REVIEWS_QUERY = gql`
-    query {
-      getProductReviews(productId: "${productId}") {
-        id
-        productId
-        rating
-        comment
-        clerkId
-        createdAt
-      }
-    }
-  `;
-
-  try {
-    const { data } = await getClient().query({
-      query: GET_PRODUCT_REVIEWS_QUERY,
-    });
-    return data.getProductReviews;
-  } catch (error) {
-    console.error("Error fetching product reviews:", error);
-    throw new Error("Failed to fetch product reviews");
   }
 };

@@ -1,18 +1,17 @@
-package com.backend.hotel;
+package com.backend;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.data.mongodb.config.EnableMongoAuditing;
-import org.springframework.data.mongodb.repository.config.EnableMongoRepositories;
 import org.springframework.data.mongodb.repository.config.EnableReactiveMongoRepositories;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-@SpringBootApplication(scanBasePackages = {"com.backend.application", "com.backend.infraestructure"})
+
+@SpringBootApplication
 @EnableReactiveMongoRepositories(basePackages = "com.backend.Infraestructure.Adapters.Drivens.Repositories")
 @EnableMongoAuditing
-public class HotelApplication {
+public class FurnitureStoreApplication {
 
 	public static void main(String[] args) {
-		SpringApplication.run(HotelApplication.class, args);
+		SpringApplication.run(FurnitureStoreApplication.class, args);
 	}
 
 }

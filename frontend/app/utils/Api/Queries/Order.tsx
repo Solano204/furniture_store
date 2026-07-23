@@ -1,24 +1,26 @@
 import { gql } from "@apollo/client";
 
-// Create Order Mutation
-export const createOrderMutation = (
-  clerkId: string,
-  products: string[],
-  orderTotal: number,
-  tax: number,
-  shipping: number,
-  username: string
-) => gql`
-  mutation {
-    createOrder(input: {
-      clerkId: "${clerkId}",
-      products: ${JSON.stringify(products)},
-      orderTotal: ${orderTotal},
-      tax: ${tax},
-      shipping: ${shipping},
-      username: "${username}"
-    }) {
+export const CREATE_ORDER_MUTATION = gql`
+  mutation CreateOrder(
+    $clerkId: String!
+    $products: Int
+    $orderTotal: Float!
+    $tax: Float!
+    $shipping: Float!
+    $username: String!
+  ) {
+    createOrder(
+      input: {
+        clerkId: $clerkId
+        products: $products
+        orderTotal: $orderTotal
+        tax: $tax
+        shipping: $shipping
+        username: $username
+      }
+    ) {
       id
+      products
       orderTotal
       tax
       shipping
@@ -27,10 +29,9 @@ export const createOrderMutation = (
   }
 `;
 
-// Get User Orders Query
-export const getUserOrdersQuery = (clerkId: string) => gql`
-  query {
-    getUserOrders(clerkId: "${clerkId}") {
+export const GET_USER_ORDERS_QUERY = gql`
+  query GetUserOrders($clerkId: String!) {
+    getUserOrders(clerkId: $clerkId) {
       id
       clerkId
       products
@@ -43,9 +44,8 @@ export const getUserOrdersQuery = (clerkId: string) => gql`
   }
 `;
 
-// Get All Orders Query
-export const getOrdersQuery = () => gql`
-  query {
+export const GET_ORDERS_QUERY = gql`
+  query GetOrders {
     getOrders {
       id
       clerkId

@@ -1,25 +1,21 @@
 "use server";
-import { gql } from "@apollo/client";
 import { getClient } from "../Client";
 import {
-  getAuthenticateMutation,
-  getChangePasswordMutation,
-  getLogoutMutation,
-  getRegisterMutation,
+  AUTHENTICATE_MUTATION,
+  CHANGE_PASSWORD_MUTATION,
+  LOGOUT_MUTATION,
+  REFRESH_TOKEN_MUTATION,
+  REGISTER_MUTATION,
 } from "../Queries/Security";
 import {
   SessionPayload,
   createSession,
   deleteSession,
-  updateSession,
-  verifySession,
   getDataFromCookie,
 } from "./cookies-session";
 import { redirect } from "next/navigation";
 import { userSchema, validateSession } from "../../schemas";
 import { revalidatePath } from "next/cache";
-import { setAccessToken } from "../Client";
-import { tr } from "@faker-js/faker";
 
 export const login = async (
   prevState: any,
@@ -33,24 +29,13 @@ export const login = async (
     // Validate the user data
     const validatedUser = validateSession(userSchema, userData);
 
-    // GraphQL mutation
-    const query = gql`
-      mutation {
-        authenticate(input: { username: "${username}", password: "${password}" }) {
-          accessToken
-          refreshToken
-          clerkId
-        }
-      }
-    `;
-
     // Perform mutation
     const client = getClient();
-    const { data } = await client.mutate({ mutation: query });
+    const { data } = await client.mutate({
+      mutation: AUTHENTICATE_MUTATION,
+      variables: { username, password },
+    });
     const { accessToken, refreshToken, clerkId } = data.authenticate;
-
-    // Set the token globally
-    setAccessToken(accessToken);
 
     // Prepare the session payload
     const dataUser: SessionPayload = {
@@ -80,12 +65,8 @@ export const changePassword = async (
   const confirmationPassword = formData.get("confirmPassword") as string;
 
   const { data } = await getClient().mutate({
-    mutation: getChangePasswordMutation(
-      username,
-      currentPassword,
-      newPassword,
-      confirmationPassword
-    ),
+    mutation: CHANGE_PASSWORD_MUTATION,
+    variables: { username, currentPassword, newPassword, confirmationPassword },
   });
   // data.changePassword;
   return { message: "password changed succesfuly" }; // Assuming `data.changePassword` contains the message
@@ -95,16 +76,41 @@ export const logout = async (
   prevState: any,
   formData: FormData
 ): Promise<{ message: string }> => {
-  const query = gql`
-    mutation {
-      logout
-    }
-  `;
   const s = getClient();
   revalidatePath("/");
-  await s.mutate({ mutation: query });
+  await s.mutate({ mutation: LOGOUT_MUTATION });
   await deleteSession();
   redirect("/");
+};
+
+// Rotates the access token using the stored refresh token and persists it,
+// keeping the rest of the session payload intact. Writes a cookie, so this
+// can only be called from a Server Action or Route Handler, never from a
+// Server Component - call it after a GraphQL call comes back with an
+// UNAUTHORIZED/INVALID_CREDENTIALS error, then retry the original operation once.
+export const refreshAccessToken = async (): Promise<boolean> => {
+  const session = await getDataFromCookie();
+  if (!session?.refreshToken) {
+    return false;
+  }
+
+  try {
+    const { data } = await getClient().mutate({
+      mutation: REFRESH_TOKEN_MUTATION,
+      variables: { refreshToken: session.refreshToken },
+    });
+
+    const newAccessToken: string | null = data?.refreshToken ?? null;
+    if (!newAccessToken) {
+      return false;
+    }
+
+    await createSession({ ...session, jwt: newAccessToken });
+    return true;
+  } catch (error) {
+    console.error("Error refreshing access token:", error);
+    return false;
+  }
 };
 
 export const register = async (
@@ -119,30 +125,13 @@ export const register = async (
     // Validate the user data
     const validatedUser = validateSession(userSchema, userData);
 
-    // GraphQL mutation
-    const query = gql`
-    mutation {
-      register(
-        input: {
-          username: "${username}",
-          password: "${password}",
-          role: "${"USER"}"
-        }
-      ) {
-        accessToken
-        refreshToken
-        clerkId
-      }
-    }
-  `;
-
     // Perform mutation
     const client = getClient();
-    const { data } = await client.mutate({ mutation: query });
+    const { data } = await client.mutate({
+      mutation: REGISTER_MUTATION,
+      variables: { username, password },
+    });
     const { accessToken, refreshToken, clerkId } = data.register;
-
-    // Set the token globally
-    setAccessToken(accessToken);
 
     // Prepare the session payload
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
@@ -189,15 +178,11 @@ export const auth = async (): Promise<User> => {
 };
 
 export const getAdminUser = async (): Promise<User2> => {
-  try {
-    const user = await currentUser();
-    if (user == null || user?.id !== process.env.ADMIN_USER_ID) {
-    }
-    return user;
-  } catch (error) {
-    console.error("Error during authentication:", error); // Log the error
-    throw new Error("Unauthorized access"); // Return null if there's an error
+  const user = await currentUser();
+  if (user == null || user.id !== process.env.ADMIN_USER_ID) {
+    redirect("/");
   }
+  return user;
 };
 
 export const currentUser = async (): Promise<User2> => {
@@ -222,26 +207,3 @@ export const currentUser = async (): Promise<User2> => {
   }
 };
 
-// src/app/utils/Api/Actions/Security.ts
-
-export async function authId(): Promise<{ userId: string | undefined }> {
-  try {
-    const cookie = await getDataFromCookie();
-    return { userId: cookie?.userId };
-  } catch (error) {
-    console.error("Error during authentication:", error);
-    return { userId: undefined }; // Return undefined if authentication fails
-  }
-}
-
-export async function authJwt(): Promise<{ jwt: string | undefined }> {
-  try {
-    if (!(await getDataFromCookie())) return { jwt: undefined };
-
-    const cookie = await getDataFromCookie();
-    return { jwt: cookie?.jwt };
-  } catch (error) {
-    console.error("Error during authentication:", error);
-    return { jwt: undefined }; // Return undefined if authentication fails
-  }
-}

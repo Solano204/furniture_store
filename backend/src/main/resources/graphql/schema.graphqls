@@ -1,3 +1,8 @@
+# Exact-precision decimal for money fields - see BigDecimalScalar.java. Not
+# graphql-java's built-in Float: that round-trips through a binary double and
+# can silently lose precision on money values.
+scalar BigDecimal
+
 # Query type - queries related to fetching data
 type Query {
     getFavorites(clerkId: String!): [Favorite]
@@ -11,6 +16,7 @@ type Query {
     getReviewUserProduct(productId: String!, clerkId: String!): Boolean
     getUserReviews(clerkId: String!): [Review]
     getOrders: [Order]
+    getInfoUser(username: String!): User
 }
 
 # Mutation type - mutations related to creating, updating, or deleting data always the name of the methon in lowerCase
@@ -26,7 +32,8 @@ type Mutation {
     deleteReview(id: String!, clerkId: String!): Boolean
     register(input: RegisterRequest!): AuthenticationResponse!
     authenticate(input: AuthenticationRequest!): AuthenticationResponse!
-    refreshToken(refreshToken: String!): Boolean!
+    # Returns the new access token, or null if the refresh token is invalid/expired.
+    refreshToken(refreshToken: String!): String
     changePassword(input: ChangePasswordRequest!): String!
     logout: String
 }
@@ -66,9 +73,9 @@ input CreateReviewInput {
 input CreateOrderInput {
     clerkId: String!
     products: Int
-    orderTotal: Float!  # Changed from BigDecimal to Float
-    tax: Float!         # Changed from BigDecimal to Float
-    shipping: Float!    # Changed from BigDecimal to Float
+    orderTotal: BigDecimal!
+    tax: BigDecimal!
+    shipping: BigDecimal!
     username: String!
 }
 
@@ -102,7 +109,7 @@ type Review {
     comment: String
     clerkId: String!
     createdAt: String!
-    updateAt: String
+    updatedAt: String
     product: Product
 }
 
@@ -116,17 +123,19 @@ type Order {
     id: String!
     clerkId: String!
     products: Int
-    orderTotal: Float!   # Changed from BigDecimal to Float
-    tax: Float!          # Changed from BigDecimal to Float
-    shipping: Float!     # Changed from BigDecimal to Float
+    orderTotal: BigDecimal!
+    tax: BigDecimal!
+    shipping: BigDecimal!
     username: String!
     createdAt: String!
 }
 
+# role is deliberately not client-settable here - self-registration always
+# creates a plain USER account (see AuthenticationService#register); granting
+# ADMIN/MODERATOR happens out of band, never from client input.
 input RegisterRequest {
   username: String!
   password: String!
-  role: String!
 }
 
 input AuthenticationRequest {
@@ -145,4 +154,13 @@ type AuthenticationResponse {
   accessToken: String!
   refreshToken: String!
   clerkId: String!
+}
+
+# Deliberately excludes the password hash - UserController#user only ever
+# returns this over the wire, never the User entity directly.
+type User {
+  id: String!
+  firstname: String
+  lastname: String
+  username: String!
 }

@@ -1,27 +1,19 @@
 "use server";
-import { uploadImage, deleteImage } from "@/app/utils/supebase";
 import { revalidatePath } from "next/cache";
 import {
-  productSchema,
-  validateWithZodSchema,
-  imageSchema,
   reviewSchema,
+  validateWithZodSchema,
 } from "../../schemas";
 import { getClient } from "../Client";
-import { fetchOrCreateCart } from "../../cartActionBase";
-import db from "@/app/utils/db";
-import { redirect } from "next/navigation";
-import { auth, currentUser, getAdminUser } from "../Actions/Security";
+import { currentUser } from "./Security";
 import {
-  deleteReviewMutation,
-  getCharactersQuery,
-  getReviewAggregateQuery,
-  getReviewUserProductQuery,
-  getUserReviewsQuery,
-  createReviewMutation,
+  DELETE_REVIEW_MUTATION,
+  GET_REVIEW_AGGREGATE_QUERY,
+  GET_REVIEW_USER_PRODUCT_QUERY,
+  GET_USER_REVIEWS_QUERY,
+  CREATE_REVIEW_MUTATION,
+  GET_PRODUCT_REVIEWS_QUERY,
 } from "../Queries/Review";
-import { getProductReviewsQuery } from "../Queries/Products";
-import { gql } from "@apollo/client";
 
 type Review = {
   id: string; // Unique identifier for the review
@@ -48,34 +40,19 @@ export const createReviewAction = async (
   const user = await currentUser();
   try {
     const rawData = Object.fromEntries(formData);
-    
+
     const validatedFields = validateWithZodSchema(reviewSchema, rawData);
 
-    console.log("validatedFields", validatedFields);
-    const createReviewMutation =  gql`
-    mutation {
-      createReview(
-        input: {
-          productId: "${validatedFields.productId}",
-          authorName: "${validatedFields.authorName}",
-          authorImageUrl: "${validatedFields.authorImageUrl}",
-          rating: ${validatedFields.rating},
-          comment: "${validatedFields.comment}",
-          clerkId: "${user.id}"
-        }
-      ) {
-        id
-        productId
-        rating
-        comment
-        clerkId
-        createdAt
-      }
-    }
-  `;
-
     const { data } = await getClient().mutate({
-      mutation: createReviewMutation,
+      mutation: CREATE_REVIEW_MUTATION,
+      variables: {
+        productId: validatedFields.productId,
+        authorName: validatedFields.authorName,
+        authorImageUrl: validatedFields.authorImageUrl,
+        rating: validatedFields.rating,
+        comment: validatedFields.comment,
+        clerkId: user.id,
+      },
     });
 
     // Revalidate the product page to reflect the new review
@@ -92,25 +69,9 @@ export const fetchProductReviews = async (
   productId: string
 ): Promise<Review[]> => {
   try {
-
-    const user = await currentUser();
-    const getProductReviewsQuery =   gql`
-    query {
-      getProductReviews(productId: "${productId}") {
-        id
-        productId
-        rating
-        authorName
-        authorImageUrl
-        comment
-        clerkId
-        createdAt
-      }
-    }
-  `;
-
     const { data } = await getClient().query({
-      query: getProductReviewsQuery,
+      query: GET_PRODUCT_REVIEWS_QUERY,
+      variables: { productId },
     });
 
     // Return the list of reviews
@@ -124,19 +85,9 @@ export const fetchProductReviews = async (
 // Fetch average rating and count of reviews for a product
 export const fetchProductRating = async (productId: string) => {
   try {
-
-  const getReviewAggregateQuery =  gql`
-  query {
-    getReviewAggregate(productId: "${productId}") {
-      productId
-      avgRating
-      ratingCount
-    }
-  }
-`;
-
     const { data } = await getClient().query({
-      query: getReviewAggregateQuery,
+      query: GET_REVIEW_AGGREGATE_QUERY,
+      variables: { productId },
     });
 
     // Return average rating and count, default to 0 if no data available
@@ -154,26 +105,9 @@ export const fetchProductRating = async (productId: string) => {
 export const fetchProductReviewsByUser = async (): Promise<Review[]> => {
   const user = await currentUser(); // Fetch the current user details
   try {
-    const getUserReviewsQuery = gql`
-      query {
-        getUserReviews(clerkId: "${user.id}") {
-          id
-          rating
-          comment
-          authorName
-          authorImageUrl
-          createdAt
-          product {
-            id
-            name
-            image
-          }
-        }
-      }
-    `;
-
     const { data } = await getClient().query({
-      query: getUserReviewsQuery,
+      query: GET_USER_REVIEWS_QUERY,
+      variables: { clerkId: user.id },
     });
 
     // Map the API response into the `Review` type
@@ -196,14 +130,9 @@ export const deleteReviewAction = async (prevState: { reviewId: string }) => {
   const user = await currentUser();
 
   try {
-    const deleteReviewMutation = gql`
-    mutation {
-      deleteReview(id: "${reviewId}", clerkId: "${user.id}")
-    }
-  `;
-  
     const { data } = await getClient().mutate({
-      mutation: deleteReviewMutation,
+      mutation: DELETE_REVIEW_MUTATION,
+      variables: { id: reviewId, clerkId: user.id },
     });
 
     // Revalidate the reviews page after deletion
@@ -221,11 +150,8 @@ export const deleteReviewAction = async (prevState: { reviewId: string }) => {
 export const findExistingReview = async (userId: string, productId: string) => {
   try {
     const { data } = await getClient().query({
-      query: gql`
-        query {
-          getReviewUserProduct(productId: "${productId}", clerkId: "${userId}")
-        }
-      `,
+      query: GET_REVIEW_USER_PRODUCT_QUERY,
+      variables: { productId, clerkId: userId },
     });
 
     return data?.getReviewUserProduct || false;

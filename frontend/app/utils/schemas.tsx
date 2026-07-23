@@ -19,11 +19,11 @@ export const productSchema = z.object({
   // refine is a function asyn that allow me validate the data more complex like functional programmation
   description: z.string().refine(
     (description) => {
-      const wordCount = description.length;
-      return wordCount >= 10 && wordCount <= 1000;
+      const characterCount = description.length;
+      return characterCount >= 10 && characterCount <= 1000;
     },
     {
-      message: "description must be between 10 and 1000 words.",
+      message: "description must be between 10 and 1000 characters.",
     }
   ),
 });

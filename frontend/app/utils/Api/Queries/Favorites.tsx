@@ -1,12 +1,8 @@
 import { gql } from "@apollo/client";
 
-// Add Favorite Mutation
-export const addFavoriteMutation = (productId: string, clerkId: string) => gql`
-  mutation {
-    addFavorite(input: {
-      productId: "${productId}",
-      clerkId: "${clerkId}"
-    }) {
+export const ADD_FAVORITE_MUTATION = gql`
+  mutation AddFavorite($productId: String!, $clerkId: String!) {
+    addFavorite(input: { productId: $productId, clerkId: $clerkId }) {
       id
       productId
       clerkId
@@ -14,17 +10,15 @@ export const addFavoriteMutation = (productId: string, clerkId: string) => gql`
   }
 `;
 
-// Delete Favorite Mutation
-export const deleteFavoriteMutation = (favoriteId: string) => gql`
-  mutation {
-    deleteFavorite(favoriteId: "${favoriteId}")
+export const DELETE_FAVORITE_MUTATION = gql`
+  mutation DeleteFavorite($favoriteId: String!) {
+    deleteFavorite(favoriteId: $favoriteId)
   }
 `;
 
-// Get Favorite Query
-export const getFavoriteQuery = (productId: string, clerkId: string) => gql`
-  query {
-    getFavorite(productId: "${productId}", clerkId: "${clerkId}") {
+export const GET_FAVORITE_QUERY = gql`
+  query GetFavorite($productId: String!, $clerkId: String!) {
+    getFavorite(productId: $productId, clerkId: $clerkId) {
       id
       productId
       clerkId
@@ -37,17 +31,21 @@ export const getFavoriteQuery = (productId: string, clerkId: string) => gql`
   }
 `;
 
-// Get Favorites Query
-export const getFavoritesQuery = (clerkId: string) => gql`
-  query {
-    getFavorites(clerkId: "${clerkId}") {
+export const GET_FAVORITES_QUERY = gql`
+  query GetFavorites($clerkId: String!) {
+    getFavorites(clerkId: $clerkId) {
       id
       productId
       clerkId
       product {
         id
         name
+        company
         description
+        image
+        featured
+        price
+        createdAt
       }
     }
   }

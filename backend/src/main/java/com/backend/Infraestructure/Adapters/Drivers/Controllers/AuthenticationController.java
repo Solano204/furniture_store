@@ -1,30 +1,17 @@
-// FOLDER TO IMPLEMENT ALL MY SECURITY 
-
-
 package com.backend.Infraestructure.Adapters.Drivers.Controllers;
 
-import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
 
 import org.springframework.graphql.data.method.annotation.Argument;
 import org.springframework.graphql.data.method.annotation.MutationMapping;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.reactive.function.server.ServerRequest;
-import org.springframework.web.reactive.function.server.ServerResponse;
 
 import com.backend.Infraestructure.Adapters.Drivens.Graphql.DocumentMappings;
-import com.backend.Infraestructure.Adapters.Drivens.Graphql.DocumentMappings.AuthenticationResponse;
 import com.backend.Infraestructure.Adapters.Drivers.Security.Services.AuthenticationService;
 
-import java.io.IOException;
 @Controller
-@Data
+@RequiredArgsConstructor
 public class AuthenticationController {
 
     private final AuthenticationService service;
@@ -42,10 +29,8 @@ public class AuthenticationController {
     }
 
     @MutationMapping(name = "refreshToken")
-    public Mono<Boolean> refreshToken(@Argument(name = "refreshToken") ServerRequest request) {
-        // Assuming refreshToken uses this method to handle the logic   
-        return service.refreshToken(request)
-                .map(response -> true); // Return true if successful
+    public Mono<String> refreshToken(@Argument(name = "refreshToken") String refreshToken) {
+        return service.refreshToken(refreshToken);
     }
 
     @MutationMapping(name = "logout")

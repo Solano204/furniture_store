@@ -5,7 +5,13 @@ datasource db {
 }
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // node:20-slim (Debian 12/bookworm) ships OpenSSL 3.x, but has no `openssl`
+  // CLI binary for Prisma to probe - detection fails and it silently falls
+  // back to generating a debian-openssl-1.1.x engine, which then can't find
+  // libssl.so.1.1 at runtime (bookworm only has libssl.so.3). Pinning the
+  // target explicitly skips the broken detection instead of relying on it.
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 model CartItem {
@@ -17,6 +23,10 @@ model CartItem {
   amount    Int
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // Postgres/Prisma does not auto-index a relation's scalar FK column -
+  // cart.cartItems traversal was doing a full-table scan on every cart page load.
+  @@index([cartId])
 }
 
 model Product {
@@ -47,6 +57,10 @@ model Cart {
   orderTotal     Int        @default(0)
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
+
+  // fetchOrCreateCart looks up by clerkId on every cart-touching request - no
+  // supporting index existed.
+  @@index([clerkId])
 }
 
 model Review {
@@ -82,4 +96,7 @@ model Order {
   isPaid     Boolean  @default(true)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+
+  // fetchUserOrders/fetchAdminOrders filter by clerkId - no supporting index existed.
+  @@index([clerkId])
 }

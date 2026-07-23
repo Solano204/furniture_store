@@ -3,10 +3,8 @@ import db from "@/app/utils/db";
 import { redirect } from "next/navigation";
 import { Cart } from "@prisma/client";
 import { revalidatePath } from "next/cache";
-// import { auth, currentUser } from "@clerk/nextjs/server";
 import { auth, currentUser } from "@/app/utils/Api/Actions/Security";
 import { CartActionsInterface } from "./cartActions";
-// import { fetchProduct } from "./actions"; PRISMA
 import { fetchProduct } from "./Api/Actions/Products";
 
 class CartActionBase implements CartActionsInterface {
@@ -109,7 +107,7 @@ class CartActionBase implements CartActionsInterface {
     amount: number;
   }): Promise<void> => {
     /// get the product that belong to one cartItem
-    let cartItem = await db.cartItem.findFirst({
+    const cartItem = await db.cartItem.findFirst({
       where: { productId, cartId },
     });
     if (cartItem) {

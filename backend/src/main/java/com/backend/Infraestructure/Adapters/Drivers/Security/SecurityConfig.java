@@ -1,91 +1,84 @@
 package com.backend.Infraestructure.Adapters.Drivers.Security;
- import org.springframework.beans.factory.annotation.Autowired;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
- import org.springframework.context.annotation.Configuration;
- import org.springframework.core.convert.converter.Converter;
- import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
- import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.ReactiveAuthenticationManager;
+import org.springframework.security.authentication.UserDetailsRepositoryReactiveAuthenticationManager;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.core.userdetails.ReactiveUserDetailsService;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 
-import com.backend.Infraestructure.Adapters.Drivens.Entities.User;
 import com.backend.Infraestructure.Adapters.Drivens.Repositories.UserRepository;
-
-import lombok.Data;
-import reactor.core.publisher.Mono;
-
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.AuthenticationProvider;
-import org.springframework.security.authentication.ReactiveAuthenticationManager;
-import org.springframework.security.authentication.UserDetailsRepositoryReactiveAuthenticationManager;
-import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
-import org.springframework.security.authorization.method.PrePostTemplateDefaults;
-import org.springframework.security.config.Customizer;
-
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 @Configuration
 @EnableWebFluxSecurity
 public class SecurityConfig {
 
-@Autowired
-private UserRepository repository;
+    @Autowired
+    private UserRepository repository;
 
-@Bean
-  SecurityWebFilterChain SecurityFilterChain(ServerHttpSecurity http) throws Exception {
-    http
-    .csrf(crs -> crs.disable())
-    .authorizeExchange(auth -> auth.pathMatchers("/**,/graphql","/graphql/**").permitAll()
-    .anyExchange().authenticated());
+    @Bean
+    SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
+        http
+            // CodeQL flags this by default, but CSRF specifically exploits a browser
+            // automatically attaching a stored session cookie to a forged cross-origin
+            // request - this API is httpBasic-only (see below), credentials go via an
+            // Authorization header on every request, and nothing here ever issues a
+            // session cookie. There's no cookie for an attacker to ride on, so this is
+            // a false positive for this auth model, not something to flip: enabling
+            // CSRF would require the frontend to fetch and submit a token on every
+            // mutating GraphQL request, which it doesn't do, and would just start
+            // rejecting legitimate requests. Dismiss the CodeQL alert as a false
+            // positive rather than re-enabling this.
+            .csrf(csrf -> csrf.disable())
+            // GraphQL is the entire API surface (no REST controllers exist in this
+            // codebase) - the endpoint itself is public, GraphQlSecurityInterceptor
+            // enforces per-operation auth inside the GraphQL execution pipeline
+            // instead, since HTTP-layer path rules can't express "this query is
+            // public, that mutation on the same endpoint isn't".
+            .authorizeExchange(auth -> auth.pathMatchers("/graphql/**").permitAll()
+                // Docker's healthcheck (and any orchestrator readiness probe) hits this
+                // unauthenticated - without this it always gets 401, so the container
+                // never reports healthy no matter how well the app is actually running.
+                .pathMatchers("/actuator/health", "/actuator/health/**").permitAll()
+                .anyExchange().authenticated());
 
-    http.httpBasic(Customizer.withDefaults());
-    return http.build();
-}
-
-// This bean will active the using of own annotation to level in security
-
+        http.httpBasic(Customizer.withDefaults());
+        return http.build();
+    }
 
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
-}
-// Here I create my own serviceUserDetail extract the userName(if exits a class
-    // or interface defined by java, I can create my own class with a Bean)
+    }
+
+    // Backs AuthenticationService's password verification during login/register.
     @Bean
     public ReactiveUserDetailsService userDetailsService() {
         return username -> repository.findByUsername(username)
-        .map(user -> new org.springframework.security.core.userdetails.User(
-            user.getUsername(), // Username (Username in this case)
-            user.getPassword(), // Encoded password
-                        user.isEnabled(), // Whether the user is enabled
-                        true, // Account is not expired
-                        true, // Credentials are not expired
-                        true, // Account is not locked
-                        user.getAuthorities() // Granted authorities (roles)
-                        ));
+            .map(user -> new org.springframework.security.core.userdetails.User(
+                user.getUsername(),
+                user.getPassword(),
+                user.isEnabled(),
+                true, // account not expired
+                true, // credentials not expired
+                true, // account not locked
+                user.getAuthorities()));
     }
-    
+
     @Bean
     public ReactiveAuthenticationManager reactiveAuthenticationManager(ReactiveUserDetailsService userDetailsService,
             PasswordEncoder passwordEncoder) {
         return new UserDetailsRepositoryReactiveAuthenticationManager(userDetailsService) {
             {
-                setPasswordEncoder(passwordEncoder); // Set the PasswordEncoder
+                setPasswordEncoder(passwordEncoder);
             }
         };
     }
-    
+
 }

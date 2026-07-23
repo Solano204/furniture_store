@@ -10,7 +10,6 @@ import {
 } from '@/components/ui/table';
 
 import SectionTitle from '@/components/global/SectionTitle';
-// import { fetchUserOrders } from '@/app/utils/orderActionBase'; PRISMA
 import { fetchUserOrders } from '@/app/utils/Api/Actions/Orders';
 import { formatCurrency, formatDate } from '@/app/utils/format';
 async function OrdersPage() {

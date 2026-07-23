@@ -9,7 +9,6 @@ import {
 } from "@/components/ui/table";
 
 import { fetchAdminOrders } from "@/app/utils/Api/Actions/Orders";
-//import { fetchAdminOrders } from "@/app/utils/orderActionBase"; prisma
 import { formatCurrency, formatDate } from "@/app/utils/format";
 async function SalesPage() {
   const orders = await fetchAdminOrders();

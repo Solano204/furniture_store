@@ -14,11 +14,12 @@ function Sidebar() {
         return (
           
           <Button
+            key={link.href}
             asChild // this property allow the button act as container and share all its style to its children or components inside itselft
             className="w-full mb-2 capitalize font-normal justify-start"
             variant={variant}
           >
-            <Link key={link.href} href={link.href}>
+            <Link href={link.href}>
               {link.label}
             </Link>
           </Button>
