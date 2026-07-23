@@ -119,6 +119,7 @@ describe("createProductAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getAdminUserMock.mockResolvedValue({ id: "admin-1", username: "admin" });
+    queryMock.mockResolvedValue({ data: { searchProducts: [] } }); // no name collision by default
   });
 
   function formDataWith(overrides: Record<string, string> = {}) {
@@ -161,12 +162,34 @@ describe("createProductAction", () => {
 
     expect(result).toEqual({ message: "GraphQL create failed" });
   });
+
+  it("rejects a name that already exists (case-insensitive) - no image upload, no mutation", async () => {
+    queryMock.mockResolvedValue({ data: { searchProducts: [{ id: "p-existing", name: "oak chair" }] } });
+
+    const result = await createProductAction(null, formDataWith({ name: "Oak Chair" }));
+
+    expect(result.message).toMatch(/already exists/);
+    expect(uploadImageMock).not.toHaveBeenCalled();
+    expect(mutateMock).not.toHaveBeenCalled();
+  });
+
+  it("does not flag a different product whose name only partially matches the search", async () => {
+    queryMock.mockResolvedValue({ data: { searchProducts: [{ id: "p-other", name: "Oak Chair Deluxe" }] } });
+    uploadImageMock.mockResolvedValue("https://img/chair.jpg");
+    mutateMock.mockResolvedValue({ data: { createProduct: { id: "p1" } } });
+
+    const result = await createProductAction(null, formDataWith({ name: "Oak Chair" }));
+
+    expect(result).toEqual({ message: "Product created successfully" });
+    expect(mutateMock).toHaveBeenCalled();
+  });
 });
 
 describe("updateProductAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getAdminUserMock.mockResolvedValue({ id: "admin-1", username: "admin" });
+    queryMock.mockResolvedValue({ data: { searchProducts: [] } }); // no name collision by default
   });
 
   it("validates and mutates, then revalidates the edit page for that product", async () => {
@@ -199,6 +222,37 @@ describe("updateProductAction", () => {
 
     expect(result.message).toMatch(/positive number/);
     expect(mutateMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects renaming a product to a name another product already has", async () => {
+    queryMock.mockResolvedValue({ data: { searchProducts: [{ id: "p-other", name: "Oak Chair" }] } });
+    const data = new FormData();
+    data.set("id", "p1");
+    data.set("name", "Oak Chair");
+    data.set("company", "Acme");
+    data.set("price", "120");
+    data.set("description", "A sturdy oak chair for the living room.");
+
+    const result = await updateProductAction(null, data);
+
+    expect(result.message).toMatch(/already exists/);
+    expect(mutateMock).not.toHaveBeenCalled();
+  });
+
+  it("re-saving a product under its own unchanged name is not flagged as a duplicate of itself", async () => {
+    queryMock.mockResolvedValue({ data: { searchProducts: [{ id: "p1", name: "Oak Chair" }] } });
+    mutateMock.mockResolvedValue({ data: { updateProduct: { id: "p1" } } });
+    const data = new FormData();
+    data.set("id", "p1");
+    data.set("name", "Oak Chair");
+    data.set("company", "Acme");
+    data.set("price", "120");
+    data.set("description", "A sturdy oak chair for the living room.");
+
+    const result = await updateProductAction(null, data);
+
+    expect(result).toEqual({ message: "Product updated successfully" });
+    expect(mutateMock).toHaveBeenCalled();
   });
 });
 

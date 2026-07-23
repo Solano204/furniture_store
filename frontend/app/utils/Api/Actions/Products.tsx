@@ -10,7 +10,7 @@ import {
 import { uploadImage, deleteImage } from "@/app/utils/supebase";
 import { getClient } from "../Client";
 import db from "@/app/utils/db";
-import { getAdminUser } from "../Actions/Security";
+import { getAdminUser } from "./Security";
 
 import {
   CREATE_PRODUCT_MUTATION,
@@ -38,6 +38,23 @@ export interface Review {
 const renderError = (error: unknown): { message: string } => ({
   message: error instanceof Error ? error.message : "An error occurred",
 });
+
+// There's no exact-match-by-name query on the backend, only fuzzy
+// SEARCH_PRODUCTS_QUERY (partial match, used for the storefront search box) -
+// reused here since adding a new backend query is out of this frontend's
+// scope, but matched exactly (case-insensitive) client-side so a search for
+// "Chair" doesn't false-positive against "Office Chair".
+async function findProductByExactName(name: string, excludeProductId?: string) {
+  const { data } = await getClient().query({
+    query: SEARCH_PRODUCTS_QUERY,
+    variables: { company: name, name },
+    fetchPolicy: "network-only",
+  });
+  const matches = (data?.searchProducts ?? []) as { id: string; name: string }[];
+  return matches.find(
+    (p) => p.id !== excludeProductId && p.name.trim().toLowerCase() === name.trim().toLowerCase()
+  );
+}
 
 export const fetchFeaturedProducts = async () => {
   try {
@@ -90,6 +107,12 @@ export const createProductAction = async (
     const file = formData.get("image") as File;
     const validatedFields = validateWithZodSchema(productSchema, rawData);
     const validatedFile = validateWithZodSchema(imageSchema, { image: file });
+
+    const duplicate = await findProductByExactName(validatedFields.name);
+    if (duplicate) {
+      return { message: `A product named "${validatedFields.name}" already exists` };
+    }
+
     const fullPath = await uploadImage(validatedFile.image);
 
     try {
@@ -183,6 +206,11 @@ export const updateProductAction = async (
     const rawData = Object.fromEntries(formData);
 
     const validatedFields = validateWithZodSchema(productSchema, rawData);
+
+    const duplicate = await findProductByExactName(validatedFields.name, productId);
+    if (duplicate) {
+      return { message: `A product named "${validatedFields.name}" already exists` };
+    }
 
     try {
       await getClient().mutate({
