@@ -15,6 +15,18 @@
 # Prisma version/schema.
 FROM node:20-slim AS base
 
+# openssl: without it Prisma can't find the CLI to probe the OpenSSL version,
+# detection fails, and it silently falls back to generating/loading a
+# debian-openssl-1.1.x engine - which then can't find libssl.so.1.1 at
+# runtime, since bookworm only ships libssl.so.3. Needed in both stages:
+# builder for `prisma generate` to detect correctly, runner for the generated
+# engine to actually find libssl at container start.
+# wget: node:20-slim has neither by default - docker-compose.yaml's
+# healthcheck for this service shells out to wget, which otherwise fails with
+# "not found" on every single check, forever reporting unhealthy regardless
+# of whether the app is actually up.
+RUN apt-get update -y && apt-get install -y openssl wget && rm -rf /var/lib/apt/lists/*
+
 FROM base AS builder
 
 WORKDIR /app
