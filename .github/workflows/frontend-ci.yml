@@ -89,6 +89,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # ghcr.io repository names must be lowercase - github.repository
+      # preserves the account's actual case ("Solano204"), which buildx
+      # rejects outright ("repository name must be lowercase").
+      - name: Compute image name
+        id: image
+        run: |
+          REPO_LC=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "name=ghcr.io/${REPO_LC}-frontend" >> "$GITHUB_OUTPUT"
+
       # Real values must be set as repository secrets (Settings > Secrets and
       # variables > Actions) before this produces a working image - without
       # them the image builds but points at placeholder services.
@@ -98,7 +107,7 @@ jobs:
           context: frontend
           file: frontend/Dockerfile
           load: true
-          tags: ghcr.io/${{ github.repository }}-frontend:${{ github.sha }}
+          tags: ${{ steps.image.outputs.name }}:${{ github.sha }}
           build-args: |
             NEXT_PUBLIC_GRAPHQL_URL=${{ secrets.NEXT_PUBLIC_GRAPHQL_URL }}
             NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
@@ -113,7 +122,7 @@ jobs:
       - name: Scan image for vulnerabilities
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: ghcr.io/${{ github.repository }}-frontend:${{ github.sha }}
+          image-ref: ${{ steps.image.outputs.name }}:${{ github.sha }}
           format: sarif
           output: trivy-frontend.sarif
           severity: CRITICAL,HIGH
@@ -131,8 +140,8 @@ jobs:
           file: frontend/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}-frontend:latest
-            ghcr.io/${{ github.repository }}-frontend:${{ github.sha }}
+            ${{ steps.image.outputs.name }}:latest
+            ${{ steps.image.outputs.name }}:${{ github.sha }}
           build-args: |
             NEXT_PUBLIC_GRAPHQL_URL=${{ secrets.NEXT_PUBLIC_GRAPHQL_URL }}
             NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
@@ -148,4 +157,4 @@ jobs:
         uses: sigstore/cosign-installer@dc72c7d5c4d10cd6bcb8cf6e3fd625a9e5e537da # v3.7.0
 
       - name: Sign image (keyless, via GitHub OIDC)
-        run: cosign sign --yes ghcr.io/${{ github.repository }}-frontend:${{ github.sha }}
+        run: cosign sign --yes ${{ steps.image.outputs.name }}:${{ github.sha }}
