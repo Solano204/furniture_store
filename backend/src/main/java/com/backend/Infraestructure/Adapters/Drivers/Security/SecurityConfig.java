@@ -25,6 +25,16 @@ public class SecurityConfig {
     @Bean
     SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
         http
+            // CodeQL flags this by default, but CSRF specifically exploits a browser
+            // automatically attaching a stored session cookie to a forged cross-origin
+            // request - this API is httpBasic-only (see below), credentials go via an
+            // Authorization header on every request, and nothing here ever issues a
+            // session cookie. There's no cookie for an attacker to ride on, so this is
+            // a false positive for this auth model, not something to flip: enabling
+            // CSRF would require the frontend to fetch and submit a token on every
+            // mutating GraphQL request, which it doesn't do, and would just start
+            // rejecting legitimate requests. Dismiss the CodeQL alert as a false
+            // positive rather than re-enabling this.
             .csrf(csrf -> csrf.disable())
             // GraphQL is the entire API surface (no REST controllers exist in this
             // codebase) - the endpoint itself is public, GraphQlSecurityInterceptor
