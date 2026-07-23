@@ -44,4 +44,6 @@ secrets/
 
 # typescript
 *.tsbuildinfo
-next-env.d.ts
+# next-env.d.ts is deliberately tracked, not ignored here (see the file
+# itself) - CI's tsc --noEmit step runs before next build would ever
+# regenerate it, so a fresh checkout needs it to already exist.
