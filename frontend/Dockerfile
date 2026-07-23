@@ -13,7 +13,7 @@
 # stage into the runner stage explicitly - not changed here since I can't
 # run the build to confirm whether it's actually needed for this project's
 # Prisma version/schema.
-FROM node:20-slim AS base
+FROM node:26-slim AS base
 
 # openssl: without it Prisma can't find the CLI to probe the OpenSSL version,
 # detection fails, and it silently falls back to generating/loading a
