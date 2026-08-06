@@ -1,5 +1,5 @@
 # FIRST STAGE: Building stage
-FROM eclipse-temurin:21-jdk AS builder
+FROM eclipse-temurin:24-jdk AS builder
 WORKDIR /app/furniture-store-backend
 
 # Copy main pom and other necessary files
@@ -21,7 +21,7 @@ RUN ./mvnw clean package -DskipTests
 
 
 # SECOND STAGE: Final image creation
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:24-jre
 
 WORKDIR /app
 
